@@ -4,406 +4,365 @@ import { Question, Difficulty, User, RankingEntry, AppView } from './types';
 import { INITIAL_QUESTIONS, PRIZE_LEVELS, RANKS } from './constants';
 import { getSergeantHint, getMissionFeedback, getCaboVelhoOpinions } from './services/geminiService';
 
-// --- Helper Functions ---
-
 const getRankStyle = (rank: string) => {
   switch (rank) {
     case 'Grão-Mestre': return 'text-purple-400 border-purple-500 bg-purple-900/20 shadow-[0_0_15px_rgba(168,85,247,0.4)]';
     case 'Mestre': return 'text-red-400 border-red-500 bg-red-900/20';
     case 'Diamante': return 'text-cyan-300 border-cyan-400 bg-cyan-900/20 shadow-[0_0_10px_rgba(34,211,238,0.3)]';
-    case 'Esmeralda': return 'text-emerald-400 border-emerald-500 bg-emerald-900/20';
-    case 'Platina': return 'text-slate-300 border-slate-400 bg-slate-900/20';
-    case 'Ouro': return 'text-accent-gold border-accent-gold bg-yellow-900/20';
-    case 'Prata': return 'text-accent-silver border-accent-silver bg-gray-900/20';
-    case 'Bronze': return 'text-accent-bronze border-accent-bronze bg-orange-900/20';
-    default: return 'text-zinc-500 border-zinc-600 bg-zinc-900/20';
-  }
-};
-
-const getRankIcon = (rank: string) => {
-  switch (rank) {
-    case 'Grão-Mestre': return 'crown';
-    case 'Mestre': return 'military_tech';
-    case 'Diamante': return 'diamond';
-    case 'Esmeralda': return 'verified';
-    case 'Platina': return 'shield';
-    case 'Ouro': return 'star';
-    case 'Prata': return 'workspace_premium';
-    case 'Bronze': return 'medal';
-    default: return 'person';
+    case 'Ouro': return 'text-accent-gold border-accent-gold';
+    case 'Prata': return 'text-accent-silver border-accent-silver';
+    case 'Bronze': return 'text-accent-bronze border-accent-bronze';
+    default: return 'text-zinc-500 border-zinc-600';
   }
 };
 
 const getAvatarUrl = (nickname: string, index: number) => {
-    const seed = nickname.length + index;
-    return `https://api.dicebear.com/7.x/avataaars/svg?seed=${seed}&backgroundColor=b6e3f4,c0aede,d1d4f9`;
+  const seed = nickname + index;
+  return `https://api.dicebear.com/7.x/avataaars/svg?seed=${seed}&backgroundColor=1a242f`;
 };
-
-// --- Components ---
 
 export default function App() {
   const [view, setView] = useState<AppView>('login');
   const [user, setUser] = useState<User | null>(null);
-  const [questions, setQuestions] = useState<Question[]>(INITIAL_QUESTIONS);
+  const [ranking, setRanking] = useState<RankingEntry[]>([]);
+  const [gameQuestions, setGameQuestions] = useState<Question[]>([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [score, setScore] = useState(0);
-  const [gameQuestions, setGameQuestions] = useState<Question[]>([]);
   const [lifelines, setLifelines] = useState({ skip: 3, sergeant: 2, caboVelho: 1 });
   const [hint, setHint] = useState<string | null>(null);
   const [caboVelhoHint, setCaboVelhoHint] = useState<string | null>(null);
   const [isHintLoading, setIsHintLoading] = useState(false);
   const [feedback, setFeedback] = useState<string>('');
-  const [ranking, setRanking] = useState<RankingEntry[]>([]);
+  
+  const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
+  const [isAnswerLocked, setIsAnswerLocked] = useState(false);
+  const [wrongQuestionRef, setWrongQuestionRef] = useState<Question | null>(null);
 
   useEffect(() => {
-    const savedRanking = localStorage.getItem('cabao_ranking');
-    if (savedRanking) setRanking(JSON.parse(savedRanking));
-
-    const savedUser = localStorage.getItem('cabao_user');
-    if (savedUser) {
-        setUser(JSON.parse(savedUser));
-        setView('menu');
+    refreshRanking();
+    const sessionUser = localStorage.getItem('cabao_current_user');
+    if (sessionUser) {
+      setUser(JSON.parse(sessionUser));
+      setView('menu');
     }
   }, []);
 
-  const saveRanking = (entry: RankingEntry) => {
-    let newRanking = [...ranking];
-    const existingIndex = newRanking.findIndex(r => r.nickname.toUpperCase() === entry.nickname.toUpperCase());
-
-    if (existingIndex !== -1) {
-      newRanking[existingIndex].rank = entry.rank;
-      if (entry.score > newRanking[existingIndex].score) {
-        newRanking[existingIndex].score = entry.score;
-      }
-    } else {
-      newRanking.push(entry);
-    }
-
-    newRanking = newRanking.sort((a, b) => {
-        const rankIdxA = RANKS.indexOf(a.rank);
-        const rankIdxB = RANKS.indexOf(b.rank);
-        if (rankIdxB !== rankIdxA) return rankIdxB - rankIdxA;
-        return b.score - a.score;
-    }).slice(0, 10);
-
-    setRanking(newRanking);
-    localStorage.setItem('cabao_ranking', JSON.stringify(newRanking));
+  const refreshRanking = () => {
+    const allUsers: User[] = JSON.parse(localStorage.getItem('cabao_all_users') || '[]');
+    const rankingData = allUsers.map(u => ({ nickname: u.nickname, score: u.score, rank: u.rank }));
+    const sorted = rankingData.sort((a,b) => b.score - a.score).slice(0, 10);
+    setRanking(sorted);
+    localStorage.setItem('cabao_ranking', JSON.stringify(sorted));
   };
 
   const handleLogin = (nickname: string, password?: string) => {
     if (!nickname.trim()) return;
     const upperNick = nickname.trim().toUpperCase();
+    
     if (upperNick === 'ADMIN' && password?.toUpperCase() !== 'MARINHA') {
-      alert("ACESSO NEGADO!");
+      alert("SENHA DE COMANDO INCORRETA!");
       return;
     }
 
-    const existingEntry = ranking.find(r => r.nickname.toUpperCase() === upperNick);
-    const newUser: User = {
-      nickname: upperNick,
-      score: existingEntry?.score || 0,
-      rank: existingEntry?.rank || 'Ferro',
-      lastPlayed: Date.now(),
-      isAdmin: upperNick === 'ADMIN'
-    };
-    setUser(newUser);
-    localStorage.setItem('cabao_user', JSON.stringify(newUser));
+    const allUsers: User[] = JSON.parse(localStorage.getItem('cabao_all_users') || '[]');
+    let userData = allUsers.find(u => u.nickname === upperNick);
+
+    if (!userData) {
+      userData = {
+        nickname: upperNick,
+        score: 0,
+        rank: 'Ferro',
+        lastPlayed: Date.now(),
+        isAdmin: upperNick === 'ADMIN',
+        seenQuestionIds: []
+      };
+      allUsers.push(userData);
+      localStorage.setItem('cabao_all_users', JSON.stringify(allUsers));
+    }
+
+    setUser(userData);
+    localStorage.setItem('cabao_current_user', JSON.stringify(userData));
     setView('menu');
   };
 
   const startGame = () => {
-    // Ciclo de 100: Embaralha tudo e pega 100.
-    // Rodada: Dessas 100, pega 16 para o Show do Milhão.
-    const fullPool = [...questions].sort(() => Math.random() - 0.5).slice(0, 100);
-    const roundPool = fullPool.sort(() => Math.random() - 0.5).slice(0, 16);
+    if (!user) return;
     
-    setGameQuestions(roundPool);
+    let seenIds = user.seenQuestionIds;
+    if (seenIds.length >= 50) {
+      seenIds = [];
+      const updated = { ...user, seenQuestionIds: [] };
+      updateUserPersist(updated);
+    }
+
+    let pool = INITIAL_QUESTIONS.filter(q => !seenIds.includes(q.id));
+    if (pool.length < 16) pool = [...INITIAL_QUESTIONS];
+
+    const selected = pool.sort(() => Math.random() - 0.5).slice(0, 16);
+    setGameQuestions(selected);
     setCurrentQuestionIndex(0);
     setScore(0);
     setLifelines({ skip: 3, sergeant: 2, caboVelho: 1 });
     setHint(null);
     setCaboVelhoHint(null);
+    setSelectedAnswer(null);
+    setIsAnswerLocked(false);
     setView('game');
   };
 
-  const handleAnswer = (index: number) => {
-    const q = gameQuestions[currentQuestionIndex];
-    if (index === q.correctAnswer) {
-      const nextIdx = currentQuestionIndex + 1;
-      const pts = PRIZE_LEVELS[currentQuestionIndex];
-      if (nextIdx >= gameQuestions.length) {
-        finishGame(pts, true);
-      } else {
-        setScore(pts);
-        setCurrentQuestionIndex(nextIdx);
-        setHint(null);
-        setCaboVelhoHint(null);
-      }
+  const updateUserPersist = (updatedUser: User) => {
+    setUser(updatedUser);
+    localStorage.setItem('cabao_current_user', JSON.stringify(updatedUser));
+    const allUsers: User[] = JSON.parse(localStorage.getItem('cabao_all_users') || '[]');
+    const idx = allUsers.findIndex(u => u.nickname === updatedUser.nickname);
+    if (idx !== -1) {
+      allUsers[idx] = updatedUser;
     } else {
-      finishGame(score, false);
+      allUsers.push(updatedUser);
+    }
+    localStorage.setItem('cabao_all_users', JSON.stringify(allUsers));
+    refreshRanking();
+  };
+
+  const handleAnswer = (index: number) => {
+    if (isAnswerLocked || !user) return;
+    const q = gameQuestions[currentQuestionIndex];
+    setSelectedAnswer(index);
+    setIsAnswerLocked(true);
+
+    if (index === q.correctAnswer) {
+      const updatedUser = { ...user, seenQuestionIds: [...user.seenQuestionIds, q.id] };
+      updateUserPersist(updatedUser);
+
+      setTimeout(() => {
+        const nextIdx = currentQuestionIndex + 1;
+        const currentXP = PRIZE_LEVELS[currentQuestionIndex];
+        setScore(currentXP);
+
+        if (nextIdx >= gameQuestions.length) {
+          finishGame(currentXP, true);
+        } else {
+          setCurrentQuestionIndex(nextIdx);
+          setHint(null);
+          setCaboVelhoHint(null);
+          setSelectedAnswer(null);
+          setIsAnswerLocked(false);
+        }
+      }, 2000);
+    } else {
+      setWrongQuestionRef(q);
+      const earnedXP = currentQuestionIndex > 0 ? PRIZE_LEVELS[currentQuestionIndex - 1] : 0;
+      setScore(earnedXP);
+      saveScore(earnedXP, false);
+      setView('correction');
     }
   };
 
-  const finishGame = async (finalScore: number, won: boolean) => {
-    setScore(finalScore);
-    if (user) {
-      let nextRank = user.rank;
-      if (won) {
-        const curIdx = RANKS.indexOf(user.rank);
-        if (curIdx < RANKS.length - 1) nextRank = RANKS[curIdx + 1];
-      }
-      const updated = { ...user, score: Math.max(user.score, finalScore), rank: nextRank };
-      setUser(updated);
-      localStorage.setItem('cabao_user', JSON.stringify(updated));
-      saveRanking({ nickname: user.nickname, score: finalScore, rank: nextRank });
+  const saveScore = (finalScore: number, won: boolean) => {
+    if (!user) return;
+    let nextRank = user.rank;
+    if (won) {
+      const idx = RANKS.indexOf(user.rank);
+      if (idx < RANKS.length - 1) nextRank = RANKS[idx + 1];
     }
+    const updated = { ...user, score: Math.max(user.score, finalScore), rank: nextRank };
+    updateUserPersist(updated);
+  };
+
+  const finishGame = async (finalScore: number, won: boolean) => {
+    saveScore(finalScore, won);
     const msg = await getMissionFeedback(finalScore, won);
     setFeedback(msg);
     setView('gameOver');
   };
 
-  // --- Views ---
+  const LoginView = () => {
+    const [name, setName] = useState('');
+    const [pass, setPass] = useState('');
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center p-6 military-gradient min-h-screen">
+        <div className="text-center mb-8">
+          <div className="w-24 h-24 bg-emerald-600 flex items-center justify-center rounded-3xl border-4 border-white shadow-xl mx-auto mb-4">
+            <span className="text-5xl">⚓</span>
+          </div>
+          <h2 className="text-4xl font-military text-white uppercase tracking-tighter">Alistar Combatente</h2>
+        </div>
+        <div className="w-full max-w-sm space-y-4">
+          <input type="text" placeholder="NOME DE GUERRA" value={name} onChange={e => setName(e.target.value.toUpperCase())}
+            className="w-full bg-slate-800 border-2 border-slate-700 p-4 rounded-xl text-white font-bold text-center focus:border-primary outline-none uppercase" />
+          {name === 'ADMIN' && (
+            <input type="password" placeholder="SENHA DE COMANDO" value={pass} onChange={e => setPass(e.target.value)}
+              className="w-full bg-slate-800 border-2 border-slate-700 p-4 rounded-xl text-white font-bold text-center outline-none" />
+          )}
+          <button onClick={() => handleLogin(name, pass)} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-military text-2xl py-4 rounded-xl border-b-4 border-emerald-800 transition-all uppercase">Apresentar</button>
+        </div>
+      </div>
+    );
+  };
 
   const RankingView = () => {
-    const top3 = ranking.slice(0, 3);
-    const others = ranking.slice(3, 10);
-    const userPos = ranking.findIndex(r => r.nickname === user?.nickname) + 1;
+    const allUsers: User[] = JSON.parse(localStorage.getItem('cabao_all_users') || '[]');
+    const sorted = allUsers.sort((a,b) => b.score - a.score).slice(0, 10);
+    const userPos = allUsers.sort((a,b) => b.score - a.score).findIndex(u => u.nickname === user?.nickname) + 1;
 
     return (
-      <div className="flex-1 flex flex-col bg-background-dark min-h-screen animate-in fade-in duration-500">
+      <div className="flex-1 flex flex-col bg-background-dark min-h-screen animate-in fade-in">
         <header className="sticky top-0 z-50 bg-[#101922]/95 backdrop-blur-sm border-b border-[#28323c]">
-            <div className="flex items-center p-4 justify-between">
-                <button onClick={() => setView('menu')} className="text-white hover:bg-white/10 rounded-full p-2 transition-colors">
-                    <span className="material-symbols-outlined">arrow_back</span>
-                </button>
-                <h2 className="text-white text-lg font-bold flex-1 text-center pr-10 uppercase tracking-widest font-display">
-                    Ranking de Batalha
-                </h2>
-            </div>
-            <div className="px-4">
-                <div className="flex border-b border-[#28323c] justify-between gap-2">
-                    <button className="flex-1 pb-3 pt-2 text-[#9dabb9] text-xs font-bold uppercase">Semanal</button>
-                    <button className="flex-1 pb-3 pt-2 text-[#9dabb9] text-xs font-bold uppercase">Mensal</button>
-                    <button className="flex-1 pb-3 pt-2 border-b-[3px] border-primary text-primary text-sm font-extrabold uppercase">Geral</button>
-                </div>
-            </div>
+          <div className="flex items-center p-4">
+            <button onClick={() => setView('menu')} className="text-white p-2 hover:bg-white/10 rounded-full transition-colors">
+              <span className="material-symbols-outlined">arrow_back</span>
+            </button>
+            <h2 className="flex-1 text-center text-lg font-bold uppercase tracking-widest text-white pr-8">Quadro de Honra</h2>
+          </div>
         </header>
-
-        <main className="flex-1 pb-32">
-            <section className="relative pt-8 pb-10 px-4">
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-3/4 h-3/4 bg-primary/10 blur-[60px] rounded-full pointer-events-none"></div>
-                <div className="flex items-end justify-center gap-2 sm:gap-4 max-w-md mx-auto relative z-10">
-                    {/* 2nd Place */}
-                    {top3[1] && (
-                        <div className="flex flex-col items-center w-1/3">
-                            <div className="relative mb-2 group">
-                                <div className="absolute -top-3 -right-2 bg-surface-dark border border-[#3b4754] rounded-full p-1 z-10 shadow-lg">
-                                    <span className="material-symbols-outlined text-accent-silver text-[20px]">military_tech</span>
-                                </div>
-                                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full border-4 border-accent-silver bg-surface-dark overflow-hidden">
-                                    <img src={getAvatarUrl(top3[1].nickname, 1)} alt="avatar" />
-                                </div>
-                                <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-accent-silver text-background-dark text-[10px] font-bold px-2 py-0.5 rounded-full">#2</div>
-                            </div>
-                            <p className="text-white text-xs font-bold truncate w-full text-center">{top3[1].nickname}</p>
-                            <p className="text-[#9dabb9] text-[10px]">{top3[1].score} XP</p>
-                            <div className="w-full h-16 bg-gradient-to-t from-surface-dark to-surface-dark/40 mt-3 rounded-t-lg border-t-4 border-accent-silver flex items-end justify-center pb-2">
-                                <span className="text-accent-silver/20 font-black text-3xl">2</span>
-                            </div>
-                        </div>
-                    )}
-                    {/* 1st Place */}
-                    {top3[0] && (
-                        <div className="flex flex-col items-center w-1/3 -mb-4 z-20">
-                            <div className="relative mb-3 animate-[bounce_3s_infinite]">
-                                <div className="absolute -top-6 left-1/2 -translate-x-1/2 text-accent-gold drop-shadow-lg">
-                                    <span className="material-symbols-outlined text-[32px] fill-current">crown</span>
-                                </div>
-                                <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full border-4 border-accent-gold bg-surface-dark overflow-hidden">
-                                    <img src={getAvatarUrl(top3[0].nickname, 0)} alt="winner" />
-                                </div>
-                                <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 bg-gradient-to-r from-accent-gold to-yellow-600 text-background-dark text-xs font-extrabold px-3 py-0.5 rounded-full border border-yellow-200 shadow-lg">#1</div>
-                            </div>
-                            <p className="text-white text-sm font-extrabold truncate w-full text-center text-shadow">{top3[0].nickname}</p>
-                            <p className="text-accent-gold text-xs font-bold">{top3[0].score} XP</p>
-                            <div className="w-full h-24 bg-gradient-to-t from-primary/30 to-primary/10 mt-3 rounded-t-lg border-t-4 border-accent-gold flex items-end justify-center pb-4 relative overflow-hidden">
-                                <div className="absolute inset-0 bg-white/5 opacity-10"></div>
-                                <span className="text-accent-gold/30 font-black text-5xl">1</span>
-                            </div>
-                        </div>
-                    )}
-                    {/* 3rd Place */}
-                    {top3[2] && (
-                        <div className="flex flex-col items-center w-1/3">
-                            <div className="relative mb-2">
-                                <div className="absolute -top-3 -right-2 bg-surface-dark border border-[#3b4754] rounded-full p-1 z-10 shadow-lg">
-                                    <span className="material-symbols-outlined text-accent-bronze text-[20px]">military_tech</span>
-                                </div>
-                                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full border-4 border-accent-bronze bg-surface-dark overflow-hidden">
-                                    <img src={getAvatarUrl(top3[2].nickname, 2)} alt="3rd" />
-                                </div>
-                                <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-accent-bronze text-white text-[10px] font-bold px-2 py-0.5 rounded-full">#3</div>
-                            </div>
-                            <p className="text-white text-xs font-bold truncate w-full text-center">{top3[2].nickname}</p>
-                            <p className="text-[#9dabb9] text-[10px]">{top3[2].score} XP</p>
-                            <div className="w-full h-12 bg-gradient-to-t from-surface-dark to-surface-dark/40 mt-3 rounded-t-lg border-t-4 border-accent-bronze flex items-end justify-center pb-2">
-                                <span className="text-accent-bronze/20 font-black text-3xl">3</span>
-                            </div>
-                        </div>
-                    )}
-                </div>
-            </section>
-
-            <div className="px-5 pb-2 pt-2"><h3 className="text-white text-sm font-bold uppercase tracking-wider text-[#9dabb9]">Classificação Geral</h3></div>
-            <div className="flex flex-col gap-3 px-4">
-                {others.map((entry, idx) => (
-                    <div key={idx} className="flex items-center gap-4 bg-surface-dark p-3 pr-4 rounded-xl border border-[#28323c] shadow-sm">
-                        <span className="text-[#9dabb9] font-bold text-sm w-6 text-center">{idx + 4}</span>
-                        <div className="w-10 h-10 rounded-full bg-cover overflow-hidden border-2 border-[#3b4754]">
-                            <img src={getAvatarUrl(entry.nickname, idx + 4)} alt="user" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                            <p className="text-white font-bold truncate text-sm uppercase">{entry.nickname}</p>
-                            <p className="text-[#9dabb9] text-[10px] uppercase font-medium">{entry.rank}</p>
-                        </div>
-                        <div className="text-right">
-                            <p className="text-white font-bold text-sm">{entry.score} XP</p>
-                        </div>
-                    </div>
-                ))}
-                {ranking.length === 0 && <p className="text-center text-slate-500 py-10">Nenhum combatente registrado.</p>}
-            </div>
+        <main className="flex-1 pb-32 pt-4">
+          <div className="flex flex-col gap-3 px-4">
+            {sorted.map((entry, i) => (
+              <div key={i} className={`flex items-center gap-4 bg-surface-dark p-4 rounded-xl border ${entry.nickname === user?.nickname ? 'border-emerald-500 bg-emerald-900/10' : 'border-[#28323c]'}`}>
+                <span className={`font-black text-lg w-6 text-center ${i < 3 ? 'text-accent-gold' : 'text-[#9dabb9]'}`}>{i + 1}</span>
+                <div className="w-12 h-12 rounded-full border-2 border-[#3b4754] overflow-hidden bg-slate-800"><img src={getAvatarUrl(entry.nickname, i)} alt="" /></div>
+                <div className="flex-1 min-w-0"><p className="text-white font-bold text-md uppercase">{entry.nickname}</p><p className={`text-[10px] uppercase font-black ${getRankStyle(entry.rank)}`}>{entry.rank}</p></div>
+                <div className="text-right"><p className="text-accent-gold font-black text-lg">{entry.score}</p><p className="text-[8px] text-slate-500 uppercase font-bold">PONTOS XP</p></div>
+              </div>
+            ))}
+          </div>
         </main>
-
-        <footer className="fixed bottom-0 left-0 w-full bg-surface-dark border-t border-primary/30 p-4 shadow-[0_-5px_20px_rgba(19,127,236,0.15)] z-40">
-            <div className="flex items-center gap-4 max-w-2xl mx-auto">
-                <div className="flex flex-col items-center justify-center">
-                    <span className="text-primary text-[10px] font-bold uppercase tracking-wider">Sua Posição</span>
-                    <span className="text-white font-black text-xl leading-none">{userPos || '--'}</span>
-                </div>
-                <div className="w-12 h-12 rounded-full border-2 border-primary overflow-hidden">
-                    <img src={getAvatarUrl(user?.nickname || 'Eu', 99)} alt="me" />
-                </div>
-                <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                        <p className="text-white font-bold truncate text-sm">{user?.nickname} (Você)</p>
-                        <span className="bg-primary/20 text-primary text-[10px] px-1.5 py-0.5 rounded font-bold uppercase">{user?.rank}</span>
-                    </div>
-                    <div className="w-full bg-[#3b4754] h-1.5 rounded-full mt-1.5 overflow-hidden">
-                        <div className="bg-primary h-full rounded-full" style={{ width: `${(RANKS.indexOf(user?.rank || 'Ferro') + 1) / RANKS.length * 100}%` }}></div>
-                    </div>
-                </div>
-                <div className="text-right">
-                    <p className="text-white font-black text-base">{user?.score} XP</p>
-                </div>
-            </div>
+        <footer className="fixed bottom-0 left-0 w-full bg-[#101922] border-t-2 border-emerald-500/50 p-4 z-40 shadow-2xl backdrop-blur-md">
+          <div className="flex items-center gap-4 max-w-2xl mx-auto">
+            <div className="text-center bg-slate-800 px-3 py-1 rounded-lg border border-slate-700"><p className="text-emerald-400 text-[8px] font-bold uppercase">Sua Posição</p><p className="text-white font-black text-xl">{userPos || '--'}</p></div>
+            <div className="flex-1"><p className="text-white font-black text-lg">{user?.nickname}</p><p className={`text-[10px] uppercase font-black ${getRankStyle(user?.rank || '')}`}>{user?.rank}</p></div>
+            <div className="text-right bg-emerald-900/20 px-4 py-1 rounded-xl border border-emerald-500/30"><p className="text-white font-black text-xl">{user?.score} XP</p></div>
+          </div>
         </footer>
       </div>
     );
   };
 
-  // --- Views Auxiliares ---
-  
-  const LoginView = () => {
-    const [name, setName] = useState('');
-    const [pass, setPass] = useState('');
-    return (
-      <div className="flex-1 flex flex-col items-center justify-center p-6 space-y-8 animate-in fade-in duration-500 military-gradient min-h-screen">
-        <div className="text-center space-y-4">
-          <div className="w-24 h-24 bg-emerald-600 flex items-center justify-center rounded-3xl border-4 border-white shadow-xl mx-auto">
-            <span className="text-5xl">⚓</span>
-          </div>
-          <h2 className="text-4xl font-military text-white uppercase drop-shadow-lg">Identifique-se, Recruta!</h2>
-        </div>
-        <div className="w-full max-w-sm space-y-4">
-          <input type="text" placeholder="NOME DE GUERRA" value={name} onChange={e => setName(e.target.value.toUpperCase())}
-            className="w-full bg-slate-800 border-2 border-slate-700 p-4 rounded-xl text-white font-bold text-center focus:border-primary outline-none transition-all uppercase" />
-          {name.toUpperCase() === 'ADMIN' && (
-            <input type="password" placeholder="SENHA" value={pass} onChange={e => setPass(e.target.value)}
-              className="w-full bg-amber-900/20 border-2 border-amber-600/50 p-4 rounded-xl text-white text-center" />
-          )}
-          <button onClick={() => handleLogin(name, pass)} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-military text-2xl py-4 rounded-xl border-b-4 border-emerald-800 transition-all uppercase">
-            Entrar no Quartel
-          </button>
-        </div>
-      </div>
-    );
-  };
-
-  const MenuView = () => (
-    <div className="flex-1 flex flex-col items-center justify-center p-6 space-y-6 animate-in slide-in-from-bottom-10 duration-500 military-gradient min-h-screen">
-        <h2 className="text-5xl font-military text-white uppercase tracking-wider">Centro de Operações</h2>
-        <div className="grid grid-cols-1 gap-4 w-full max-w-md">
-            <button onClick={startGame} className="bg-emerald-600 hover:bg-emerald-500 text-white p-6 rounded-2xl flex items-center justify-between border-b-4 border-emerald-800 shadow-xl group">
-                <div className="text-left"><span className="block font-military text-3xl">Iniciar Missão</span><span className="text-emerald-200 text-xs uppercase">Acumule Mérito Militar</span></div>
-                <span className="text-4xl group-hover:translate-x-2 transition-transform">🎯</span>
-            </button>
-            <button onClick={() => setView('ranking')} className="bg-slate-800 hover:bg-slate-700 text-white p-5 rounded-2xl flex items-center justify-between border-b-4 border-slate-900 transition-all">
-                <div className="text-left"><span className="block font-bold">Quadro de Honra</span><span className="text-slate-400 text-xs uppercase">Elite dos Fuzileiros</span></div>
-                <span className="text-2xl">🏆</span>
-            </button>
-            <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700 text-center">
-                <span className="block text-slate-500 text-[10px] uppercase font-bold tracking-widest">Patente Atual</span>
-                <span className={`text-2xl font-military uppercase ${getRankStyle(user?.rank || 'Ferro').split(' ')[0]}`}>{user?.rank}</span>
-            </div>
-        </div>
-        <button onClick={() => { localStorage.removeItem('cabao_user'); setView('login'); }} className="text-slate-500 hover:text-red-400 text-xs uppercase font-bold mt-10">Dar Baixa (Logout)</button>
-    </div>
-  );
-
   const GameView = () => {
     const q = gameQuestions[currentQuestionIndex];
     if (!q) return null;
     return (
-      <div className="flex-1 flex flex-col p-4 space-y-4 animate-in fade-in duration-300 military-gradient min-h-screen">
-        <div className="flex justify-between items-center bg-slate-900/80 p-3 rounded-xl border border-slate-700">
-            <div className="flex flex-col"><span className="text-[10px] text-slate-500 font-bold uppercase">Mérito Almejado</span><span className="text-xl font-military text-accent-gold">{PRIZE_LEVELS[currentQuestionIndex]} XP</span></div>
-            <div className="flex flex-col items-end"><span className="text-[10px] text-slate-500 font-bold uppercase">Nível</span><span className="text-xs font-bold text-emerald-400 uppercase">{q.difficulty}</span></div>
+      <div className="flex-1 flex flex-col p-4 military-gradient min-h-screen">
+        <div className="flex justify-between items-center bg-slate-900/80 p-3 rounded-xl border border-slate-700 mb-4 backdrop-blur-sm">
+            <div><p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Acumulado</p><p className="text-xl font-military text-accent-gold">{score} XP</p></div>
+            <div className="text-right"><p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Alvo Atual</p><p className="text-xl font-military text-emerald-400">{PRIZE_LEVELS[currentQuestionIndex]} XP</p></div>
         </div>
         <div className="flex-1 flex flex-col justify-center space-y-6 max-w-2xl mx-auto w-full">
-            <div className="bg-slate-800 border-2 border-slate-600 p-8 rounded-3xl shadow-inner relative overflow-hidden">
-                <h3 className="text-xl sm:text-2xl font-bold leading-tight text-white text-center relative z-10">{q.text}</h3>
+            <div className="bg-slate-800/95 border-2 border-slate-600 p-8 rounded-3xl shadow-2xl relative text-center">
+                <p className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">{q.category}</p>
+                <h3 className="text-xl sm:text-2xl font-bold leading-tight text-white mt-2">{q.text}</h3>
             </div>
             <div className="grid grid-cols-1 gap-3">
-                {q.options.map((opt, i) => (
-                    <button key={i} onClick={() => handleAnswer(i)} className="flex items-center bg-slate-900 hover:bg-emerald-900/40 border-2 border-slate-700 hover:border-emerald-500 p-4 rounded-xl text-left transition-all active:scale-95 group">
-                        <div className="w-10 h-10 flex items-center justify-center bg-slate-800 group-hover:bg-emerald-600 rounded-lg text-slate-400 group-hover:text-white font-bold mr-4">{String.fromCharCode(65 + i)}</div>
-                        <span className="text-slate-200 font-medium">{opt}</span>
-                    </button>
-                ))}
+                {q.options.map((opt, i) => {
+                    let btnClass = "bg-slate-900 border-slate-700 hover:border-primary/50";
+                    if (selectedAnswer === i) {
+                        btnClass = i === q.correctAnswer ? "bg-green-600 border-green-400 scale-[1.02] shadow-[0_0_20px_rgba(22,163,74,0.4)]" : "bg-red-600 border-red-400";
+                    } else if (selectedAnswer !== null && i === q.correctAnswer) {
+                        btnClass = "bg-green-600/40 border-green-400 animate-pulse";
+                    }
+                    return (
+                        <button key={i} disabled={isAnswerLocked} onClick={() => handleAnswer(i)} className={`flex items-center border-2 p-4 rounded-xl text-left transition-all duration-300 ${btnClass}`}>
+                            <div className="w-10 h-10 flex items-center justify-center bg-slate-800 rounded-lg text-slate-400 font-bold mr-4 shrink-0 shadow-inner">{String.fromCharCode(65 + i)}</div>
+                            <span className="text-slate-200 font-medium">{opt}</span>
+                        </button>
+                    );
+                })}
             </div>
         </div>
-        <div className="grid grid-cols-3 gap-3 max-w-2xl mx-auto w-full pb-4">
-            <button onClick={() => { if(lifelines.skip > 0){ setLifelines(prev => ({...prev, skip: prev.skip-1})); setCurrentQuestionIndex(p => p+1); } }} className="bg-slate-800 p-3 rounded-xl border-b-4 border-slate-900 text-white font-bold text-[10px] uppercase">Recuar ({lifelines.skip})</button>
-            <button onClick={async () => { if(lifelines.sergeant > 0){ setIsHintLoading(true); const h = await getSergeantHint(q); setHint(h); setLifelines(p => ({...p, sergeant: p.sergeant-1})); setIsHintLoading(false); } }} className="bg-amber-600 p-3 rounded-xl border-b-4 border-amber-800 text-white font-bold text-[10px] uppercase">Bizu SG ({lifelines.sergeant})</button>
-            <button onClick={async () => { if(lifelines.caboVelho > 0){ setIsHintLoading(true); const h = await getCaboVelhoOpinions(q); setCaboVelhoHint(h); setLifelines(p => ({...p, caboVelho: 0})); setIsHintLoading(false); } }} className="bg-emerald-700 p-3 rounded-xl border-b-4 border-emerald-900 text-white font-bold text-[10px] uppercase">Cabo Velho ({lifelines.caboVelho})</button>
+        <div className="grid grid-cols-3 gap-3 max-w-2xl mx-auto w-full pt-4">
+            <button onClick={() => { if(lifelines.skip > 0 && !isAnswerLocked){ setLifelines(p => ({...p, skip: p.skip-1})); setCurrentQuestionIndex(prev => prev+1); } }} className="bg-slate-800 p-3 rounded-xl text-white font-bold text-[10px] uppercase border-b-4 border-black active:translate-y-1 transition-transform">Recuar ({lifelines.skip})</button>
+            <button onClick={async () => { if(lifelines.sergeant > 0 && !isAnswerLocked){ setIsHintLoading(true); const h = await getSergeantHint(q); setHint(h); setLifelines(p => ({...p, sergeant: p.sergeant-1})); setIsHintLoading(false); } }} className="bg-amber-600 p-3 rounded-xl text-white font-bold text-[10px] uppercase border-b-4 border-amber-800 active:translate-y-1 transition-transform">Bizu SG ({lifelines.sergeant})</button>
+            <button onClick={async () => { if(lifelines.caboVelho > 0 && !isAnswerLocked){ setIsHintLoading(true); const h = await getCaboVelhoOpinions(q); setCaboVelhoHint(h); setLifelines(p => ({...p, caboVelho: 0})); setIsHintLoading(false); } }} className="bg-emerald-700 p-3 rounded-xl text-white font-bold text-[10px] uppercase border-b-4 border-emerald-900 active:translate-y-1 transition-transform">Antigões ({lifelines.caboVelho})</button>
         </div>
-        {hint && <div className="bg-amber-900/30 border border-amber-500/50 p-4 rounded-xl text-amber-200 text-sm italic">"{hint}"</div>}
-        {caboVelhoHint && <div className="bg-emerald-900/30 border border-emerald-500/50 p-4 rounded-xl text-emerald-200 text-sm italic">{caboVelhoHint}</div>}
+        {isHintLoading && <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50"><div className="bg-slate-800 p-6 rounded-2xl border-2 border-primary animate-pulse text-white font-military text-xl uppercase">Criptografando Bizu...</div></div>}
+        {(hint || caboVelhoHint) && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-6 z-50">
+            <div className="bg-slate-800 p-8 rounded-3xl border-2 border-primary max-w-sm w-full text-center space-y-4 shadow-2xl animate-in zoom-in">
+              <h4 className="text-2xl font-military text-primary uppercase">{hint ? 'Dica do Sargento' : 'Voz dos Antigões'}</h4>
+              <p className="text-slate-200 italic leading-relaxed">"{hint || caboVelhoHint}"</p>
+              <button onClick={() => { setHint(null); setCaboVelhoHint(null); }} className="w-full bg-primary p-3 rounded-xl font-bold uppercase shadow-lg">Entendido!</button>
+            </div>
+          </div>
+        )}
       </div>
     );
   };
 
-  const GameOverView = () => (
-    <div className="flex-1 flex flex-col items-center justify-center p-6 space-y-8 animate-in zoom-in duration-500 military-gradient min-h-screen text-center">
-        <h2 className="text-6xl font-military text-white uppercase">{score >= 1600 ? 'Missão Cumprida!' : 'Fim da Missão'}</h2>
-        <div className="w-24 h-24 bg-emerald-600 flex items-center justify-center rounded-3xl border-4 border-white shadow-xl mx-auto"><span className="text-5xl">⚓</span></div>
-        <p className="text-3xl font-military text-accent-gold uppercase">Mérito: {score} XP</p>
-        <div className="max-w-md bg-slate-800/50 p-6 rounded-3xl border border-slate-700"><p className="text-white text-sm uppercase">{feedback}</p></div>
-        <div className="flex gap-4 w-full max-w-sm">
-            <button onClick={startGame} className="flex-1 bg-emerald-600 p-4 rounded-xl font-military text-xl border-b-4 border-emerald-800">Tentar Novamente</button>
-            <button onClick={() => setView('menu')} className="flex-1 bg-slate-700 p-4 rounded-xl font-military text-xl border-b-4 border-slate-900">Menu</button>
+  const CorrectionView = () => (
+    <div className="flex-1 flex flex-col items-center justify-center p-6 military-gradient min-h-screen text-center animate-in zoom-in">
+        <div className="bg-background-dark border-4 border-red-600 p-8 rounded-3xl shadow-2xl max-w-lg w-full space-y-6">
+            <h2 className="text-4xl font-military text-red-500 uppercase tracking-tighter">Missão Abortada!</h2>
+            <div className="text-left space-y-4">
+                <p className="text-white font-bold text-lg italic leading-tight">"{wrongQuestionRef?.text}"</p>
+                <div className="bg-green-900/30 border border-green-500 p-4 rounded-xl shadow-inner">
+                    <p className="text-green-400 text-[10px] uppercase font-bold mb-1 tracking-widest text-center">Gabarito Verdadeiro:</p>
+                    <p className="text-white font-black text-xl text-center">{wrongQuestionRef?.options[wrongQuestionRef.correctAnswer]}</p>
+                </div>
+                <div className="bg-slate-800 border border-slate-600 p-4 rounded-xl text-center">
+                    <p className="text-slate-400 text-[10px] uppercase font-bold mb-1 tracking-widest">Fonte da Apostila:</p>
+                    <p className="text-amber-400 font-black italic">{wrongQuestionRef?.reference}</p>
+                </div>
+            </div>
+            <div className="bg-slate-900 p-4 rounded-xl border border-slate-700">
+                <p className="text-slate-500 text-[10px] font-bold uppercase">Mérito Acumulado Salvo:</p>
+                <p className="text-2xl font-military text-accent-gold">{score} XP</p>
+            </div>
+            <button onClick={() => setView('menu')} className="w-full bg-slate-700 hover:bg-slate-600 p-4 rounded-xl font-military text-2xl text-white border-b-4 border-slate-950 transition-all uppercase shadow-lg">Retornar ao Quartel</button>
         </div>
     </div>
   );
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col bg-background-dark text-white font-display">
       {view === 'login' && <LoginView />}
-      {view === 'menu' && <MenuView />}
+      {view === 'menu' && (
+        <div className="flex-1 flex flex-col items-center justify-center p-6 military-gradient min-h-screen space-y-6 animate-in slide-in-from-bottom-10">
+          <div className="text-center">
+            <h1 className="text-7xl font-military text-white uppercase tracking-widest text-shadow mb-2">Show do Cabão</h1>
+            <p className="text-emerald-400 font-bold text-xs uppercase tracking-[0.3em] bg-slate-900/40 py-1 px-4 rounded-full border border-emerald-500/20">Simulador Técnico - Apostila Invest</p>
+          </div>
+          <div className="w-full max-w-md space-y-4">
+            <button onClick={startGame} className="w-full bg-emerald-600 hover:bg-emerald-500 p-6 rounded-2xl flex items-center justify-between border-b-4 border-emerald-800 shadow-xl group transition-all duration-300">
+              <div className="text-left"><span className="block font-military text-3xl">Iniciar Treinamento</span><span className="text-emerald-200 text-xs uppercase font-bold">Objetivo: Promoção a Cabo</span></div>
+              <span className="text-4xl group-hover:scale-125 group-hover:rotate-12 transition-transform">🎯</span>
+            </button>
+            <button onClick={() => setView('ranking')} className="w-full bg-slate-800 hover:bg-slate-700 p-5 rounded-2xl flex items-center justify-between border-b-4 border-slate-950 transition-all uppercase font-bold tracking-wider shadow-lg group">
+              <div className="text-left"><span className="block">Quadro de Honra</span><span className="text-slate-400 text-[10px] uppercase">Recordes de Mérito</span></div>
+              <span className="text-2xl group-hover:scale-110 transition-transform">🏆</span>
+            </button>
+            <div className="bg-slate-900/80 p-5 rounded-3xl border-2 border-slate-700 text-center shadow-2xl backdrop-blur-sm">
+              <p className="text-slate-500 text-[10px] uppercase font-black mb-1 tracking-widest">Patente Atual</p>
+              <p className={`text-4xl font-military uppercase drop-shadow-md tracking-wider ${getRankStyle(user?.rank || '')}`}>{user?.rank}</p>
+              <div className="mt-4 flex flex-col items-center">
+                <p className="text-accent-gold font-black text-2xl">{user?.score} XP</p>
+                <p className="text-[8px] text-slate-500 uppercase font-black">Total Acumulado</p>
+              </div>
+              <div className="mt-4">
+                <div className="flex justify-between text-[8px] uppercase font-black text-slate-400 mb-1 px-1 tracking-widest">
+                  <span>Arsenal Visto:</span>
+                  <span>{user?.seenQuestionIds.length} / 50</span>
+                </div>
+                <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden border border-slate-700 shadow-inner">
+                  <div className="bg-emerald-500 h-full transition-all duration-1000 shadow-[0_0_10px_rgba(16,185,129,0.5)]" style={{ width: `${((user?.seenQuestionIds.length || 0) / 50) * 100}%` }}></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <button onClick={() => { localStorage.removeItem('cabao_current_user'); setView('login'); }} className="text-slate-500 hover:text-red-400 text-[10px] uppercase font-black tracking-widest underline transition-colors">Trocar Combatente</button>
+        </div>
+      )}
       {view === 'game' && <GameView />}
       {view === 'ranking' && <RankingView />}
-      {view === 'gameOver' && <GameOverView />}
+      {view === 'gameOver' && (
+        <div className="flex-1 flex flex-col items-center justify-center p-6 military-gradient min-h-screen text-center animate-in zoom-in">
+          <h2 className="text-6xl font-military text-white uppercase mb-4 tracking-tighter">{score >= 1600 ? 'Promoção Garantida!' : 'Treino Concluído'}</h2>
+          <div className="w-32 h-32 bg-emerald-600 flex items-center justify-center rounded-full border-8 border-white shadow-2xl mx-auto mb-4"><span className="text-7xl">⚓</span></div>
+          <p className="text-4xl font-military text-accent-gold mb-6 uppercase tracking-wider">Mérito: {score} XP</p>
+          <div className="max-w-md bg-slate-900/80 p-6 rounded-3xl border-2 border-slate-700 mb-8 shadow-inner"><p className="text-white text-sm uppercase italic font-black leading-relaxed">"{feedback}"</p></div>
+          <div className="flex gap-4 w-full max-w-sm"><button onClick={startGame} className="flex-1 bg-emerald-600 hover:bg-emerald-500 p-4 rounded-xl font-military text-2xl border-b-4 border-emerald-800 uppercase shadow-lg transition-all active:scale-95">Reengajar</button><button onClick={() => setView('menu')} className="flex-1 bg-slate-700 hover:bg-slate-600 p-4 rounded-xl font-military text-2xl border-b-4 border-slate-900 uppercase shadow-lg transition-all active:scale-95">Quartel</button></div>
+        </div>
+      )}
+      {view === 'correction' && <CorrectionView />}
     </div>
   );
 }

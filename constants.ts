@@ -1,61 +1,72 @@
 
 import { Question, Difficulty } from './types';
 
+const createQuestion = (
+  id: string,
+  text: string, 
+  correct: string, 
+  distractors: [string, string, string], 
+  diff: Difficulty, 
+  cat: string, 
+  ref: string
+): Question => {
+  const options = [correct, ...distractors];
+  for (let i = options.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [options[i], options[j]] = [options[j], options[i]];
+  }
+  return {
+    id,
+    text,
+    options,
+    correctAnswer: options.indexOf(correct),
+    difficulty: diff,
+    category: cat,
+    reference: ref
+  };
+};
+
 export const INITIAL_QUESTIONS: Question[] = [
-  // História e Antecedentes
-  { id: '1', text: 'Em que data foi criada a Brigada Real da Marinha em Lisboa?', options: ['28 de agosto de 1797', '7 de março de 1808', '21 de março de 1809', '11 de junho de 1864'], correctAnswer: 0, difficulty: Difficulty.RECRUTA, category: 'História' },
-  { id: '2', text: 'Qual Fortaleza foi ocupada pela Brigada Real ao chegar no Brasil em 1809?', options: ['Fortaleza de Santa Cruz', 'Fortaleza de São José', 'Forte de Copacabana', 'Laje de Santos'], correctAnswer: 1, difficulty: Difficulty.RECRUTA, category: 'História' },
-  { id: '3', text: 'Quem era o Ministro da Marinha que determinou a ocupação da Ilha das Cobras em 1809?', options: ['Almirante Tamandaré', 'Conde de Anadia', 'Almirante Barroso', 'Gastão Motta'], correctAnswer: 1, difficulty: Difficulty.COMBATENTE, category: 'História' },
-  { id: '4', text: 'O CFN originou-se de qual unidade portuguesa de 1618?', options: ['Terço da Armada', 'Brigada de Ferro', 'Corpo de Fuzileiros', 'Regimento Naval'], correctAnswer: 0, difficulty: Difficulty.COMBATENTE, category: 'História' },
-  { id: '5', text: 'Em que ano o CFN recebeu sua denominação atual?', options: ['1847', '1908', '1924', '1932'], correctAnswer: 3, difficulty: Difficulty.RECRUTA, category: 'História' },
-  
-  // Cerimonial
-  { id: '6', text: 'A que horas é feito o hasteamento da Bandeira Nacional?', options: ['07:00h', '08:00h', '09:00h', 'Ao nascer do sol'], correctAnswer: 1, difficulty: Difficulty.RECRUTA, category: 'Cerimonial' },
-  { id: '7', text: 'Qual o número de "boys" para as honras de um Almirante-de-Esquadra?', options: ['2', '4', '6', '8'], correctAnswer: 3, difficulty: Difficulty.COMBATENTE, category: 'Cerimonial' },
-  { id: '8', text: 'O galhardete "Prep" é içado quanto tempo antes do cerimonial da bandeira?', options: ['1 minuto', '5 minutos', '10 minutos', '15 minutos'], correctAnswer: 1, difficulty: Difficulty.ESPECIALISTA, category: 'Cerimonial' },
-  { id: '9', text: 'Qual bandeira é mantida hasteada permanentemente em tempo de guerra nos hospitais?', options: ['Bandeira do Brasil', 'Bandeira do Cruzeiro', 'Bandeira da Cruz Vermelha', 'Bandeira de Sinais'], correctAnswer: 2, difficulty: Difficulty.COMBATENTE, category: 'Cerimonial' },
-  
-  // Estatuto e RDM
-  { id: '10', text: 'Qual a lei que dispõe sobre o Estatuto dos Militares?', options: ['Lei 4.375', 'Lei 6.880', 'Lei 13.954', 'Decreto 88.545'], correctAnswer: 1, difficulty: Difficulty.COMBATENTE, category: 'Estatuto' },
-  { id: '11', text: 'As penas disciplinares de prisão não podem ultrapassar quantos dias?', options: ['10 dias', '20 dias', '30 dias', '45 dias'], correctAnswer: 2, difficulty: Difficulty.COMBATENTE, category: 'RDM' },
-  { id: '12', text: 'Qual o valor máximo do cômputo do comportamento militar?', options: ['10 pontos', '50 pontos', '100 pontos', '1000 pontos'], correctAnswer: 2, difficulty: Difficulty.RECRUTA, category: 'RDM' },
-  { id: '13', text: 'O que significa a expressão "Ad Sumus"?', options: ['Sempre prontos', 'Estamos presentes', 'Fiel até a morte', 'Força e Honra'], correctAnswer: 1, difficulty: Difficulty.RECRUTA, category: 'Doutrina' },
-  
-  // Organização do GC (Pág 196)
-  { id: '14', text: 'Quantos militares compõem um Grupo de Combate (GC) completo?', options: ['9', '11', '13', '15'], correctAnswer: 2, difficulty: Difficulty.RECRUTA, category: 'Organização' },
-  { id: '15', text: 'Quem é o comandante de uma Esquadra de Tiro (ET)?', options: ['Sargento', 'Cabo', 'Soldado antigo', 'Suboficial'], correctAnswer: 1, difficulty: Difficulty.RECRUTA, category: 'Organização' },
-  { id: '16', text: 'Quantas Esquadras de Tiro compõem um GC?', options: ['2', '3', '4', '5'], correctAnswer: 1, difficulty: Difficulty.RECRUTA, category: 'Organização' },
-  { id: '17', text: 'Qual o armamento orgânico do Atirador da ET?', options: ['Fuzil IA2', 'Pistola 9mm', 'Metralhadora MINIMI', 'Lança-rojão AT-4'], correctAnswer: 2, difficulty: Difficulty.COMBATENTE, category: 'Armamento' },
-  
-  // Táticas e Terreno
-  { id: '18', text: 'O que significa a sigla OCOAV no estudo do terreno?', options: ['Observação, Cobertas, Obstáculos, Acidentes, Vias de Acesso', 'Operação, Comando, Ordem, Ataque, Vigilância', 'Organização, Comunicação, Objetivo, Apoio, Valor', 'Nenhuma das anteriores'], correctAnswer: 0, difficulty: Difficulty.ESPECIALISTA, category: 'Tática' },
-  { id: '19', text: 'Qual a distância limite da observação aproximada?', options: ['500m', '1000m', '2000m', '4000m'], correctAnswer: 2, difficulty: Difficulty.ESPECIALISTA, category: 'Tática' },
-  { id: '20', text: 'O que é "coberta" no conceito militar?', options: ['Proteção contra fogos', 'Proteção contra observação', 'Camuflagem de rede', 'Abrigo de concreto'], correctAnswer: 1, difficulty: Difficulty.COMBATENTE, category: 'Tática' },
-  
-  // Liderança e Ética
-  { id: '21', text: 'Qual o fundamento da Rosa das Virtudes que fala sobre a aceitação dos riscos?', options: ['Coragem', 'Abnegação', 'Zelo', 'Espírito de Sacrifício'], correctAnswer: 0, difficulty: Difficulty.COMBATENTE, category: 'Liderança' },
-  { id: '22', text: 'A "Guerra de Atrito" foca principalmente em quê?', options: ['Manobra psicológica', 'Destruição cumulativa dos meios físicos', 'Aproximação indireta', 'Ciberguerra'], correctAnswer: 1, difficulty: Difficulty.ESPECIALISTA, category: 'Doutrina' },
-  { id: '23', text: 'Quem é o Patrono do CFN?', options: ['Almirante Barroso', 'Almirante Tamandaré', 'Almirante Gastão Motta', 'Marquês de Tamandaré'], correctAnswer: 2, difficulty: Difficulty.RECRUTA, category: 'História' },
-  { id: '24', text: 'Qual a cor tradicional do uniforme de verão do Fuzileiro Naval?', options: ['Branco', 'Azul Marinho', 'Bege', 'Cinza'], correctAnswer: 2, difficulty: Difficulty.RECRUTA, category: 'Tradições' },
-  { id: '25', text: 'Em um navio, onde o Comandante dirige a manobra?', options: ['Tijupá', 'Passadiço', 'Castelo', 'Tombadilho'], correctAnswer: 1, difficulty: Difficulty.COMBATENTE, category: 'Linguagem do Mar' }
-  // Nota: O sistema simula um banco de 500 questões. No código real, este array seria preenchido com o conteúdo completo.
+  // --- HISTÓRIA (PÁG 53-57) ---
+  createQuestion('h1', 'Em que data a Brigada Real da Marinha aportou no Rio de Janeiro?', '7 de março de 1808', ['28 de agosto de 1797', '21 de março de 1809', '11 de junho de 1865'], Difficulty.RECRUTA, 'História', 'Pág 53'),
+  createQuestion('h2', 'Qual o nome do Patrono do Corpo de Fuzileiros Navais?', 'Almirante Gastão Motta', ['Almirante Barroso', 'Marquês de Tamandaré', 'Almirante Rodrigo Pinto Guedes'], Difficulty.RECRUTA, 'História', 'Pág 74'),
+  createQuestion('h3', 'Quem foi o herói da tomada da Praça Forte Paissandu, conhecido pelo heroísmo no "Forte Sebastopol"?', '2º SG Francisco Borges de Souza', ['Conde de Anadia', 'Almirante Rodrigo Pinto Guedes', 'Marquês de Olinda'], Difficulty.COMBATENTE, 'História', 'Pág 54'),
+  createQuestion('h4', 'A Brigada Real da Marinha ocupou qual Fortaleza em 21 de março de 1809?', 'Fortaleza de São José na Ilha das Cobras', ['Fortaleza de Santa Cruz', 'Forte de Copacabana', 'Fortaleza de São João'], Difficulty.COMBATENTE, 'História', 'Pág 53'),
+
+  // --- TRADIÇÕES E LINGUAGEM (PÁG 58-65) ---
+  createQuestion('tr1', 'Na linguagem do mar, o que significa a expressão "ONÇA"?', 'Dificuldade ou situação de apuro', ['Militar muito antigo', 'Algo que corre bem', 'Sinal de silêncio'], Difficulty.RECRUTA, 'Tradições', 'Pág 65'),
+  createQuestion('tr2', 'Como é denominado o quarto de serviço entre 04:00h e 08:00h?', 'Quarto d\'alva', ['Quarto de vigília', 'Quarto da manhã', 'Quarto de rendição'], Difficulty.RECRUTA, 'Tradições', 'Pág 58'),
+  createQuestion('tr3', 'O que significa o termo "ROSCA FINA" na Marinha?', 'Superior exigente na observância de normas', ['Militar que trabalha mal', 'Cabo que ajuda os recrutas', 'Manutenção de armamento'], Difficulty.COMBATENTE, 'Tradições', 'Pág 65'),
+  createQuestion('tr4', 'Qual a origem do lenço preto usado no pescoço do uniforme de marinheiro?', 'Evitava que o suor e a pólvora escorressem para os olhos', ['Sinal de luto pela Rainha', 'Identificação de praças de carreira', 'Proteção contra o frio'], Difficulty.ESPECIALISTA, 'Tradições', 'Pág 62'),
+
+  // --- RDM E ESTATUTO (PÁG 17-42) ---
+  createQuestion('rd1', 'Qual o prazo máximo permitido para uma pena de prisão simples ou rigorosa segundo o RDM?', '30 dias', ['10 dias', '15 dias', '45 dias'], Difficulty.COMBATENTE, 'RDM', 'Pág 23/39'),
+  // Fixed rd2: wrapped distractors in brackets and ensured proper argument order for createQuestion
+  createQuestion('rd2', 'Qual das alternativas abaixo é uma circunstância ATENUANTE da contravenção disciplinar?', 'Bons antecedentes militares', ['Reincidência', 'Conluio de duas ou mais pessoas', 'Premeditação'], Difficulty.COMBATENTE, 'RDM', 'Pág 36'),
+  createQuestion('rd3', 'A quem compete privativamente impor a pena de "Dispensa das funções de atividade"?', 'Ministro da Marinha', ['Oficial de Serviço', 'Comandante da Unidade', 'Presidente da República'], Difficulty.ESPECIALISTA, 'RDM', 'Pág 38'),
+  createQuestion('rd4', 'A partir de qual graduação as Praças adquirem estabilidade após 10 anos de serviço?', 'Cabo de carreira', ['Marinheiro recrutado', 'Soldado temporário', 'Recruta'], Difficulty.ESPECIALISTA, 'Estatuto', 'Pág 24'),
+
+  // --- OGSA E SERVIÇO (PÁG 43-52 / 95-100) ---
+  createQuestion('og1', 'Quem é a autoridade responsável pela disciplina e segurança da OM na ausência do Comandante e Imediato?', 'Oficial de Serviço', ['Sargento da Guarda', 'Cabo de Dia', 'Fiel de Quartel'], Difficulty.RECRUTA, 'OGSA', 'Pág 58'),
+  createQuestion('og2', 'Qual o tempo máximo de serviço de sentinela dentro de um período de 24 horas?', '8 horas', ['2 horas', '4 horas', '12 horas'], Difficulty.COMBATENTE, 'OGSA', 'Pág 52'),
+  createQuestion('og3', 'Na ausência do Comandante da Guarda, quem exerce suas funções?', 'Cabo da Guarda', ['Sargento de Dia', 'Mensageiro', 'Plantão'], Difficulty.RECRUTA, 'OGSA', 'Pág 51'),
+
+  // --- TÁTICA E COMBATE (PÁG 127-166) ---
+  createQuestion('ta1', 'No estudo do terreno (OCOAV), o que significa a sigla "C"?', 'Cobertas e Abrigos', ['Comando', 'Comunicação', 'Crista Militar'], Difficulty.COMBATENTE, 'Tática', 'Pág 128'),
+  createQuestion('ta2', 'Qual a distância de exposição máxima recomendada em um lanço de marcha acelerada?', '15 metros', ['5 metros', '30 metros', '50 metros'], Difficulty.COMBATENTE, 'Tática', 'Pág 148'),
+  createQuestion('ta3', 'Qual a principal diferença entre COBERTA e ABRIGO?', 'Coberta protege contra vistas; Abrigo protege contra fogos', ['Coberta é natural; Abrigo é artificial', 'Não há diferença técnica', 'Abrigo é apenas para oficiais'], Difficulty.RECRUTA, 'Tática', 'Pág 141/142'),
+  createQuestion('ta4', 'O que caracteriza a "CRISTA MILITAR" de uma elevação?', 'Permite observar a base da encosta sem ângulos mortos', ['É o ponto geográfico mais alto', 'É a zona de reunião no topo', 'É a face voltada para o mar'], Difficulty.ESPECIALISTA, 'Tática', 'Pág 131'),
+
+  // --- OPERAÇÕES ANFÍBIAS (PÁG 167-182) ---
+  createQuestion('oa1', 'Qual a fase da OpAnf onde ocorrem os "Briefings" e o teste do cronograma?', 'Ensaio', ['Planejamento', 'Embarque', 'Travessia'], Difficulty.COMBATENTE, 'OpAnf', 'Pág 168'),
+  createQuestion('oa2', 'Qual documento o FN recebe no embarque contendo seu beliche e equipe de embarcação?', 'Cartão de Embarque', ['Ordem de Serviço', 'Guia de Marcha', 'Manifesto'], Difficulty.RECRUTA, 'OpAnf', 'Pág 169'),
+  createQuestion('oa3', 'Em caso de afundamento do CLAnf, qual o procedimento correto se houver bolsão de ar?', 'Permanecer calmo e sair pela escotilha de pessoal quando alagar', ['Abrir imediatamente a escotilha de carga', 'Inflar o colete dentro da viatura', 'Abandonar a arma e nadar'], Difficulty.ESPECIALISTA, 'OpAnf', 'Pág 176'),
+
+  // --- LIDERANÇA (PÁG 76-84) ---
+  createQuestion('li1', 'Qual o nome da rosa dos ventos que contém as virtudes militares do CFN?', 'Rosa das Virtudes', ['Rosa do Comando', 'Rosa da Honra', 'Círculo de Ferro'], Difficulty.RECRUTA, 'Liderança', 'Pág 78'),
+  createQuestion('li2', 'A capacidade de decidir sem depender de ordem superior diante de situações inesperadas é:', 'Iniciativa', ['Competência', 'Responsabilidade', 'Dever'], Difficulty.RECRUTA, 'Liderança', 'Pág 80'),
+  createQuestion('li3', 'No processo de liderança, o que significa a variável "SITUAÇÃO"?', 'O cenário e o nível de estresse onde ocorre a interação', ['O posto do oficial', 'A ordem do Comandante', 'O tempo de serviço'], Difficulty.COMBATENTE, 'Liderança', 'Pág 78'),
 ];
 
-export const PRIZE_LEVELS = [
-  100, 200, 300, 400, 500, 
-  600, 700, 800, 900, 1000, 
-  1100, 1200, 1300, 1400, 1500, 
-  1600
-];
-
-export const RANKS = [
-  'Ferro',
-  'Bronze',
-  'Prata',
-  'Ouro',
-  'Platina',
-  'Esmeralda',
-  'Diamante',
-  'Mestre',
-  'Grão-Mestre'
-];
+export const PRIZE_LEVELS = [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200, 1300, 1400, 1500, 1600];
+export const RANKS = ['Ferro', 'Bronze', 'Prata', 'Ouro', 'Platina', 'Esmeralda', 'Diamante', 'Mestre', 'Grão-Mestre'];

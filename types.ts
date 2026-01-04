@@ -13,6 +13,7 @@ export interface Question {
   correctAnswer: number;
   difficulty: Difficulty;
   category: string;
+  reference: string; // Referência da apostila
 }
 
 export interface User {
@@ -21,6 +22,7 @@ export interface User {
   rank: string;
   lastPlayed: number;
   isAdmin: boolean;
+  seenQuestionIds: string[]; // IDs das questões já respondidas
 }
 
 export interface RankingEntry {
@@ -29,4 +31,4 @@ export interface RankingEntry {
   rank: string;
 }
 
-export type AppView = 'login' | 'menu' | 'game' | 'ranking' | 'admin' | 'gameOver';
+export type AppView = 'login' | 'menu' | 'game' | 'ranking' | 'admin' | 'gameOver' | 'correction';
