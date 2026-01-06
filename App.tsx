@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Question, Difficulty, User, RankingEntry, AppView } from './types';
 import { INITIAL_QUESTIONS, PRIZE_LEVELS, RANKS } from './constants';
 import { getSergeantHint, getMissionFeedback, getCaboVelhoOpinions } from './services/geminiService';
+import { fetchGlobalRanking, upsertScore } from './services/supabaseService';
 
 const getRankStyle = (rank: string) => {
   switch (rank) {
@@ -25,6 +26,8 @@ export default function App() {
   const [view, setView] = useState<AppView>('login');
   const [user, setUser] = useState<User | null>(null);
   const [ranking, setRanking] = useState<RankingEntry[]>([]);
+  const [isRankingLoading, setIsRankingLoading] = useState(false);
+  const [rankingError, setRankingError] = useState<boolean>(false);
   const [gameQuestions, setGameQuestions] = useState<Question[]>([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [score, setScore] = useState(0);
@@ -39,7 +42,6 @@ export default function App() {
   const [wrongQuestionRef, setWrongQuestionRef] = useState<Question | null>(null);
 
   useEffect(() => {
-    refreshRanking();
     const sessionUser = localStorage.getItem('cabao_current_user');
     if (sessionUser) {
       setUser(JSON.parse(sessionUser));
@@ -47,12 +49,28 @@ export default function App() {
     }
   }, []);
 
-  const refreshRanking = () => {
-    const allUsers: User[] = JSON.parse(localStorage.getItem('cabao_all_users') || '[]');
-    const rankingData = allUsers.map(u => ({ nickname: u.nickname, score: u.score, rank: u.rank }));
-    const sorted = rankingData.sort((a,b) => b.score - a.score).slice(0, 10);
-    setRanking(sorted);
-    localStorage.setItem('cabao_ranking', JSON.stringify(sorted));
+  const loadGlobalRanking = async () => {
+    setIsRankingLoading(true);
+    setRankingError(false);
+    try {
+      const data = await fetchGlobalRanking();
+      if (data && data.length > 0) {
+        setRanking(data);
+      } else {
+        // Fallback para ranking local se o global falhar ou estiver vazio
+        const allUsers: User[] = JSON.parse(localStorage.getItem('cabao_all_users') || '[]');
+        const localRanking = allUsers
+          .sort((a, b) => b.score - a.score)
+          .slice(0, 10)
+          .map(u => ({ nickname: u.nickname, score: u.score, rank: u.rank }));
+        setRanking(localRanking);
+        if (allUsers.length === 0) setRankingError(true);
+      }
+    } catch (err) {
+      setRankingError(true);
+    } finally {
+      setIsRankingLoading(false);
+    }
   };
 
   const handleLogin = (nickname: string, password?: string) => {
@@ -110,7 +128,7 @@ export default function App() {
     setView('game');
   };
 
-  const updateUserPersist = (updatedUser: User) => {
+  const updateUserPersist = async (updatedUser: User) => {
     setUser(updatedUser);
     localStorage.setItem('cabao_current_user', JSON.stringify(updatedUser));
     const allUsers: User[] = JSON.parse(localStorage.getItem('cabao_all_users') || '[]');
@@ -121,7 +139,9 @@ export default function App() {
       allUsers.push(updatedUser);
     }
     localStorage.setItem('cabao_all_users', JSON.stringify(allUsers));
-    refreshRanking();
+    
+    // Sincroniza com o Supabase de forma assíncrona (non-blocking)
+    upsertScore(updatedUser.nickname, updatedUser.score, updatedUser.rank);
   };
 
   const handleAnswer = (index: number) => {
@@ -158,7 +178,7 @@ export default function App() {
     }
   };
 
-  const saveScore = (finalScore: number, won: boolean) => {
+  const saveScore = async (finalScore: number, won: boolean) => {
     if (!user) return;
     let nextRank = user.rank;
     if (won) {
@@ -166,11 +186,11 @@ export default function App() {
       if (idx < RANKS.length - 1) nextRank = RANKS[idx + 1];
     }
     const updated = { ...user, score: Math.max(user.score, finalScore), rank: nextRank };
-    updateUserPersist(updated);
+    await updateUserPersist(updated);
   };
 
   const finishGame = async (finalScore: number, won: boolean) => {
-    saveScore(finalScore, won);
+    await saveScore(finalScore, won);
     const msg = await getMissionFeedback(finalScore, won);
     setFeedback(msg);
     setView('gameOver');
@@ -201,9 +221,7 @@ export default function App() {
   };
 
   const RankingView = () => {
-    const allUsers: User[] = JSON.parse(localStorage.getItem('cabao_all_users') || '[]');
-    const sorted = allUsers.sort((a,b) => b.score - a.score).slice(0, 10);
-    const userPos = allUsers.sort((a,b) => b.score - a.score).findIndex(u => u.nickname === user?.nickname) + 1;
+    const userPos = ranking.findIndex(u => u.nickname === user?.nickname) + 1;
 
     return (
       <div className="flex-1 flex flex-col bg-background-dark min-h-screen animate-in fade-in">
@@ -216,22 +234,39 @@ export default function App() {
           </div>
         </header>
         <main className="flex-1 pb-32 pt-4">
-          <div className="flex flex-col gap-3 px-4">
-            {sorted.map((entry, i) => (
-              <div key={i} className={`flex items-center gap-4 bg-surface-dark p-4 rounded-xl border ${entry.nickname === user?.nickname ? 'border-emerald-500 bg-emerald-900/10' : 'border-[#28323c]'}`}>
-                <span className={`font-black text-lg w-6 text-center ${i < 3 ? 'text-accent-gold' : 'text-[#9dabb9]'}`}>{i + 1}</span>
-                <div className="w-12 h-12 rounded-full border-2 border-[#3b4754] overflow-hidden bg-slate-800"><img src={getAvatarUrl(entry.nickname, i)} alt="" /></div>
-                <div className="flex-1 min-w-0"><p className="text-white font-bold text-md uppercase">{entry.nickname}</p><p className={`text-[10px] uppercase font-black ${getRankStyle(entry.rank)}`}>{entry.rank}</p></div>
-                <div className="text-right"><p className="text-accent-gold font-black text-lg">{entry.score}</p><p className="text-[8px] text-slate-500 uppercase font-bold">PONTOS XP</p></div>
-              </div>
-            ))}
-          </div>
+          {isRankingLoading ? (
+            <div className="flex flex-col items-center justify-center p-20 space-y-4">
+              <div className="w-12 h-12 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+              <p className="text-emerald-500 font-military text-xl uppercase animate-pulse">Sincronizando com QG...</p>
+            </div>
+          ) : rankingError ? (
+            <div className="flex flex-col items-center justify-center p-10 text-center space-y-4">
+               <span className="material-symbols-outlined text-red-500 text-6xl">cloud_off</span>
+               <p className="text-white font-bold uppercase">Falha na Conexão Global</p>
+               <p className="text-slate-400 text-xs">Exibindo apenas dados locais. Verifique as chaves do Supabase no código.</p>
+               <button onClick={loadGlobalRanking} className="bg-slate-800 px-6 py-2 rounded-lg text-emerald-400 font-bold border border-emerald-500/30">Tentar Novamente</button>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3 px-4">
+              {ranking.map((entry, i) => (
+                <div key={i} className={`flex items-center gap-4 bg-surface-dark p-4 rounded-xl border ${entry.nickname === user?.nickname ? 'border-emerald-500 bg-emerald-900/10' : 'border-[#28323c]'}`}>
+                  <span className={`font-black text-lg w-6 text-center ${i < 3 ? 'text-accent-gold' : 'text-[#9dabb9]'}`}>{i + 1}</span>
+                  <div className="w-12 h-12 rounded-full border-2 border-[#3b4754] overflow-hidden bg-slate-800"><img src={getAvatarUrl(entry.nickname, i)} alt="" /></div>
+                  <div className="flex-1 min-w-0"><p className="text-white font-bold text-md uppercase">{entry.nickname}</p><p className={`text-[10px] uppercase font-black ${getRankStyle(entry.rank)}`}>{entry.rank}</p></div>
+                  <div className="text-right"><p className="text-accent-gold font-black text-lg">{entry.score}</p><p className="text-[8px] text-slate-500 uppercase font-bold">PONTOS XP</p></div>
+                </div>
+              ))}
+            </div>
+          )}
         </main>
         <footer className="fixed bottom-0 left-0 w-full bg-[#101922] border-t-2 border-emerald-500/50 p-4 z-40 shadow-2xl backdrop-blur-md">
           <div className="flex items-center gap-4 max-w-2xl mx-auto">
             <div className="text-center bg-slate-800 px-3 py-1 rounded-lg border border-slate-700"><p className="text-emerald-400 text-[8px] font-bold uppercase">Sua Posição</p><p className="text-white font-black text-xl">{userPos || '--'}</p></div>
             <div className="flex-1"><p className="text-white font-black text-lg">{user?.nickname}</p><p className={`text-[10px] uppercase font-black ${getRankStyle(user?.rank || '')}`}>{user?.rank}</p></div>
-            <div className="text-right bg-emerald-900/20 px-4 py-1 rounded-xl border border-emerald-500/30"><p className="text-white font-black text-xl">{user?.score} XP</p></div>
+            <div className="text-right bg-emerald-900/20 px-4 py-1 rounded-xl border border-emerald-500/30">
+              <p className="text-white font-black text-xl">{user?.score} XP</p>
+              <button onClick={loadGlobalRanking} className="text-[8px] text-emerald-400 font-bold uppercase hover:underline">Atualizar ↻</button>
+            </div>
           </div>
         </footer>
       </div>
@@ -326,8 +361,8 @@ export default function App() {
               <div className="text-left"><span className="block font-military text-3xl">Iniciar Treinamento</span><span className="text-emerald-200 text-xs uppercase font-bold">Objetivo: Promoção a Cabo</span></div>
               <span className="text-4xl group-hover:scale-125 group-hover:rotate-12 transition-transform">🎯</span>
             </button>
-            <button onClick={() => setView('ranking')} className="w-full bg-slate-800 hover:bg-slate-700 p-5 rounded-2xl flex items-center justify-between border-b-4 border-slate-950 transition-all uppercase font-bold tracking-wider shadow-lg group">
-              <div className="text-left"><span className="block">Quadro de Honra</span><span className="text-slate-400 text-[10px] uppercase">Recordes de Mérito</span></div>
+            <button onClick={() => { setView('ranking'); loadGlobalRanking(); }} className="w-full bg-slate-800 hover:bg-slate-700 p-5 rounded-2xl flex items-center justify-between border-b-4 border-slate-950 transition-all uppercase font-bold tracking-wider shadow-lg group">
+              <div className="text-left"><span className="block">Quadro de Honra Global</span><span className="text-slate-400 text-[10px] uppercase">Recordes de Mérito</span></div>
               <span className="text-2xl group-hover:scale-110 transition-transform">🏆</span>
             </button>
             <div className="bg-slate-900/80 p-5 rounded-3xl border-2 border-slate-700 text-center shadow-2xl backdrop-blur-sm">
