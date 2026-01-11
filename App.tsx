@@ -43,7 +43,6 @@ export default function App() {
   const [isAnswerLocked, setIsAnswerLocked] = useState(false);
   const [wrongQuestionRef, setWrongQuestionRef] = useState<Question | null>(null);
 
-  // Ref para o timer do debounce
   const searchTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -59,7 +58,6 @@ export default function App() {
     }
   }, []);
 
-  // Implementação do Debounce de 300ms para busca do ranking
   const loadGlobalRanking = useCallback(() => {
     if (searchTimeoutRef.current) {
       window.clearTimeout(searchTimeoutRef.current);
@@ -89,7 +87,6 @@ export default function App() {
     }, 300);
   }, []);
 
-  // Listener para redimensionamento com debounce (opcional, mas solicitado pelo contexto)
   useEffect(() => {
     const handleResize = () => {
       if (view === 'ranking') {
@@ -127,13 +124,16 @@ export default function App() {
   };
 
   const generateQuestionPool = (seenIds: string[]) => {
+    // Implementação da lógica de ciclo de 500 questões solicitada
+    const cycleLimit = Math.min(500, INITIAL_QUESTIONS.length);
     let pool = INITIAL_QUESTIONS.filter(q => !seenIds.includes(q.id));
-    if (pool.length < 5) {
-      pool = [...INITIAL_QUESTIONS].sort(() => Math.random() - 0.5);
-    } else {
-      pool = pool.sort(() => Math.random() - 0.5);
+    
+    // Se o pool atual estiver vazio ou atingirmos o limite de 500 do ciclo, resetamos
+    if (pool.length === 0 || seenIds.length >= cycleLimit) {
+      pool = [...INITIAL_QUESTIONS];
     }
-    return pool;
+
+    return pool.sort(() => Math.random() - 0.5);
   };
 
   const startGame = () => {
@@ -160,8 +160,9 @@ export default function App() {
     else allUsers.push(updatedUser);
     localStorage.setItem('cabao_all_users', JSON.stringify(allUsers));
     
+    // Sincronização automática com Supabase
     upsertScore(updatedUser.nickname, updatedUser.score, updatedUser.rank).catch(err => {
-      console.warn('Falha silenciosa na sincronização global:', err);
+      console.warn('Falha na sincronização global:', err);
     });
   };
 
@@ -175,7 +176,15 @@ export default function App() {
       const nextConsecutive = consecutiveCorrect + 1;
       setConsecutiveCorrect(nextConsecutive);
       
-      const newSeen = Array.from(new Set([...user.seenQuestionIds, q.id]));
+      // Atualização do ciclo de questões
+      const cycleLimit = Math.min(500, INITIAL_QUESTIONS.length);
+      let newSeen = Array.from(new Set([...user.seenQuestionIds, q.id]));
+      
+      // Se atingiu o limite do ciclo, reinicia o array de IDs vistos
+      if (newSeen.length >= cycleLimit) {
+        newSeen = [];
+      }
+
       const updatedUser = { ...user, seenQuestionIds: newSeen };
       
       if (nextConsecutive > 0 && nextConsecutive % 25 === 0) {
@@ -395,12 +404,13 @@ export default function App() {
             <button onClick={() => { setView('ranking'); loadGlobalRanking(); }} className="w-full bg-slate-800 hover:bg-slate-700 p-5 rounded-2xl flex items-center justify-between border-b-4 border-slate-950 group transition-all">
               <div className="text-left">
                 <span className="block font-bold text-lg">Quadro de Honra</span>
-                <span className="text-slate-400 text-[9px] uppercase">Elite do CFN</span>
+                <span className="text-slate-400 text-[9px] uppercase">Ranking Global</span>
               </div>
               <span className="text-2xl group-hover:scale-110 transition-transform">🏆</span>
             </button>
             <div className="bg-slate-900/80 p-6 rounded-3xl border-2 border-slate-700 text-center shadow-inner">
-              <p className="text-slate-500 text-[10px] uppercase font-black tracking-widest mb-1">Sua Graduação Atual:</p>
+              <p className="text-emerald-400 text-xl font-military uppercase mb-1">{user?.nickname}</p>
+              <p className="text-slate-500 text-[10px] uppercase font-black tracking-widest mb-1">Graduação Atual:</p>
               <p className={`text-5xl font-military uppercase leading-tight ${getRankStyle(user?.rank || '')}`}>{user?.rank}</p>
               <div className="flex items-center justify-center gap-2 mt-2">
                 <span className="material-symbols-outlined text-accent-gold text-lg">military_tech</span>
