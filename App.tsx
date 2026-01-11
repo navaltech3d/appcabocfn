@@ -124,11 +124,9 @@ export default function App() {
   };
 
   const generateQuestionPool = (seenIds: string[]) => {
-    // Implementação da lógica de ciclo de 500 questões solicitada
     const cycleLimit = Math.min(500, INITIAL_QUESTIONS.length);
     let pool = INITIAL_QUESTIONS.filter(q => !seenIds.includes(q.id));
     
-    // Se o pool atual estiver vazio ou atingirmos o limite de 500 do ciclo, resetamos
     if (pool.length === 0 || seenIds.length >= cycleLimit) {
       pool = [...INITIAL_QUESTIONS];
     }
@@ -160,7 +158,6 @@ export default function App() {
     else allUsers.push(updatedUser);
     localStorage.setItem('cabao_all_users', JSON.stringify(allUsers));
     
-    // Sincronização automática com Supabase
     upsertScore(updatedUser.nickname, updatedUser.score, updatedUser.rank).catch(err => {
       console.warn('Falha na sincronização global:', err);
     });
@@ -176,11 +173,9 @@ export default function App() {
       const nextConsecutive = consecutiveCorrect + 1;
       setConsecutiveCorrect(nextConsecutive);
       
-      // Atualização do ciclo de questões
       const cycleLimit = Math.min(500, INITIAL_QUESTIONS.length);
       let newSeen = Array.from(new Set([...user.seenQuestionIds, q.id]));
       
-      // Se atingiu o limite do ciclo, reinicia o array de IDs vistos
       if (newSeen.length >= cycleLimit) {
         newSeen = [];
       }
@@ -409,9 +404,9 @@ export default function App() {
               <span className="text-2xl group-hover:scale-110 transition-transform">🏆</span>
             </button>
             <div className="bg-slate-900/80 p-6 rounded-3xl border-2 border-slate-700 text-center shadow-inner">
-              <p className="text-emerald-400 text-xl font-military uppercase mb-1">{user?.nickname}</p>
+              <p className="text-emerald-400 text-4xl font-military uppercase mb-2">{user?.nickname}</p>
               <p className="text-slate-500 text-[10px] uppercase font-black tracking-widest mb-1">Graduação Atual:</p>
-              <p className={`text-5xl font-military uppercase leading-tight ${getRankStyle(user?.rank || '')}`}>{user?.rank}</p>
+              <p className={`text-2xl font-military uppercase leading-tight ${getRankStyle(user?.rank || '')}`}>{user?.rank}</p>
               <div className="flex items-center justify-center gap-2 mt-2">
                 <span className="material-symbols-outlined text-accent-gold text-lg">military_tech</span>
                 <p className="text-accent-gold font-black text-2xl">{user?.score} XP</p>
