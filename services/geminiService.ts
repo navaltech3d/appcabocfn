@@ -20,7 +20,7 @@ export const getSergeantHint = async (question: Question): Promise<string> => {
     return response.text || "Recruta, preste atenção nas instruções de combate!";
   } catch (error) {
     console.error("Gemini API Error:", error);
-    return "O rádio está com interferência (Erro de Conexão)! Confie no seu estudo e siga a missão.";
+    return "O rádio está com pegando (Erro de Conexão)! Confie no seu estudo e siga a missão.";
   }
 };
 
