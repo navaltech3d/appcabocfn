@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Question, User, RankingEntry, AppView } from './types.ts';
 import { INITIAL_QUESTIONS, PRIZE_LEVELS, RANKS } from './constants.ts';
-import { getSergeantHint, getMissionFeedback } from './services/geminiService.ts';
+import { getMissionFeedback } from './services/geminiService.ts';
 import { fetchGlobalRanking, upsertScore } from './services/supabaseService.ts';
 
 const getRankStyle = (rank: string) => {
@@ -125,10 +125,15 @@ export default function App() {
 
   const generateQuestionPool = (seenIds: string[]) => {
     const cycleLimit = Math.min(500, INITIAL_QUESTIONS.length);
+    
+    // Filtra questões que não foram vistas
     let pool = INITIAL_QUESTIONS.filter(q => !seenIds.includes(q.id));
     
+    // Se o pool atual estiver vazio ou atingirmos o limite de 500 do ciclo, resetamos
     if (pool.length === 0 || seenIds.length >= cycleLimit) {
       pool = [...INITIAL_QUESTIONS];
+      // Nota: Não limpamos os seenIds aqui para não perder o rastro, 
+      // mas o pool conterá todas as questões novamente.
     }
 
     return pool.sort(() => Math.random() - 0.5);
@@ -136,6 +141,7 @@ export default function App() {
 
   const startGame = () => {
     if (!user) return;
+    // O pool é gerado respeitando as questões que o usuário JÁ viu em sessões anteriores
     const pool = generateQuestionPool(user.seenQuestionIds);
     setGameQuestions(pool);
     setCurrentQuestionIndex(0);
@@ -176,6 +182,7 @@ export default function App() {
       const cycleLimit = Math.min(500, INITIAL_QUESTIONS.length);
       let newSeen = Array.from(new Set([...user.seenQuestionIds, q.id]));
       
+      // Se atingiu o limite do ciclo, reinicia o array de IDs vistos para permitir repetição
       if (newSeen.length >= cycleLimit) {
         newSeen = [];
       }
@@ -309,7 +316,7 @@ export default function App() {
         </div>
         <div className="grid grid-cols-3 gap-2 mt-4 max-w-md mx-auto w-full">
             <button onClick={() => { if(lifelines.skip > 0 && !isAnswerLocked){ setLifelines(p => ({...p, skip: p.skip-1})); setCurrentQuestionIndex(p => p+1); } }} className="bg-slate-800 p-3 rounded-lg text-[10px] font-bold uppercase border-b-4 border-black">Recuar ({lifelines.skip})</button>
-            <button onClick={async () => { if(lifelines.sergeant > 0 && !isAnswerLocked){ setIsHintLoading(true); const h = await getSergeantHint(q); setHint(h); setLifelines(p => ({...p, sergeant: p.sergeant-1})); setIsHintLoading(false); } }} className="bg-amber-600 p-3 rounded-lg text-[10px] font-bold uppercase border-b-4 border-amber-800">Bizu SG ({lifelines.sergeant})</button>
+            <button onClick={() => { if(lifelines.sergeant > 0 && !isAnswerLocked){ setHint(q.bizu); setLifelines(p => ({...p, sergeant: p.sergeant-1})); } }} className="bg-amber-600 p-3 rounded-lg text-[10px] font-bold uppercase border-b-4 border-amber-800">Bizu SG ({lifelines.sergeant})</button>
             <button onClick={useMetaMeta} className={`p-3 rounded-lg text-[10px] font-bold uppercase border-b-4 ${lifelines.metaMeta > 0 ? 'bg-emerald-700 border-emerald-900' : 'bg-slate-700 opacity-50'}`}>Meta-Meta ({lifelines.metaMeta})</button>
         </div>
         {isHintLoading && <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 text-white font-military text-xl uppercase animate-pulse">Criptografando Bizu...</div>}
@@ -404,12 +411,10 @@ export default function App() {
               <span className="text-2xl group-hover:scale-110 transition-transform">🏆</span>
             </button>
             <div className="bg-slate-900/80 p-6 rounded-3xl border-2 border-slate-700 text-center shadow-inner">
-              {/* Nickname em destaque gigante conforme pedido */}
               <p className="text-emerald-400 text-6xl font-military uppercase leading-none mb-4">{user?.nickname}</p>
               
               <div className="flex flex-col items-center space-y-1">
                 <p className="text-slate-500 text-[10px] uppercase font-black tracking-widest">Graduação Atual:</p>
-                {/* Graduação reduzida conforme pedido */}
                 <p className={`text-xs font-black uppercase tracking-widest py-1 px-3 rounded-full border ${getRankStyle(user?.rank || '')}`}>{user?.rank}</p>
               </div>
 

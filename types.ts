@@ -13,7 +13,8 @@ export interface Question {
   correctAnswer: number;
   difficulty: Difficulty;
   category: string;
-  reference: string; // Referência da apostila
+  reference: string; 
+  bizu: string; // Dica pré-definida para o botão BIZU SG
 }
 
 export interface User {
@@ -22,7 +23,7 @@ export interface User {
   rank: string;
   lastPlayed: number;
   isAdmin: boolean;
-  seenQuestionIds: string[]; // IDs das questões já respondidas
+  seenQuestionIds: string[]; 
 }
 
 export interface RankingEntry {
