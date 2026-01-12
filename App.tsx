@@ -404,10 +404,16 @@ export default function App() {
               <span className="text-2xl group-hover:scale-110 transition-transform">🏆</span>
             </button>
             <div className="bg-slate-900/80 p-6 rounded-3xl border-2 border-slate-700 text-center shadow-inner">
-              <p className="text-emerald-400 text-4xl font-military uppercase mb-2">{user?.nickname}</p>
-              <p className="text-slate-500 text-[10px] uppercase font-black tracking-widest mb-1">Graduação Atual:</p>
-              <p className={`text-2xl font-military uppercase leading-tight ${getRankStyle(user?.rank || '')}`}>{user?.rank}</p>
-              <div className="flex items-center justify-center gap-2 mt-2">
+              {/* Nickname em destaque gigante conforme pedido */}
+              <p className="text-emerald-400 text-6xl font-military uppercase leading-none mb-4">{user?.nickname}</p>
+              
+              <div className="flex flex-col items-center space-y-1">
+                <p className="text-slate-500 text-[10px] uppercase font-black tracking-widest">Graduação Atual:</p>
+                {/* Graduação reduzida conforme pedido */}
+                <p className={`text-xs font-black uppercase tracking-widest py-1 px-3 rounded-full border ${getRankStyle(user?.rank || '')}`}>{user?.rank}</p>
+              </div>
+
+              <div className="flex items-center justify-center gap-2 mt-4 pt-4 border-t border-slate-800/50">
                 <span className="material-symbols-outlined text-accent-gold text-lg">military_tech</span>
                 <p className="text-accent-gold font-black text-2xl">{user?.score} XP</p>
               </div>
