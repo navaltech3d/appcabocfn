@@ -40,6 +40,9 @@ export default function App() {
   const [isAnswerLocked, setIsAnswerLocked] = useState(false);
   const [wrongQuestionRef, setWrongQuestionRef] = useState<Question | null>(null);
 
+  // Estado para controlar o pop-up de aviso do WhatsApp
+  const [showLoginNotice, setShowLoginNotice] = useState(true);
+
   useEffect(() => {
     const loadInitialData = async () => {
       const dbQuestions = await fetchQuestionsFromDB();
@@ -231,7 +234,36 @@ export default function App() {
     const [isAdminField, setIsAdminField] = useState(false);
 
     return (
-      <div className="flex-1 flex flex-col items-center justify-center p-6 military-gradient min-h-screen">
+      <div className="flex-1 flex flex-col items-center justify-center p-6 military-gradient min-h-screen relative overflow-hidden">
+        {/* Pop-up de Aviso do WhatsApp */}
+        {showLoginNotice && (
+          <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-6 animate-in fade-in duration-300">
+            <div className="w-full max-w-sm bg-slate-900 border-2 border-emerald-500 rounded-3xl p-8 shadow-[0_0_30px_rgba(16,185,129,0.3)] animate-in zoom-in-95 duration-300">
+              <div className="flex justify-center mb-6">
+                <div className="w-16 h-16 bg-emerald-500/10 rounded-full flex items-center justify-center border-2 border-emerald-500 animate-pulse">
+                  <span className="material-symbols-outlined text-4xl text-emerald-500">campaign</span>
+                </div>
+              </div>
+              <h3 className="text-2xl font-military text-white text-center mb-4 uppercase tracking-tighter">COMUNICADO IMPORTANTE</h3>
+              <p className="text-slate-300 text-sm text-center leading-relaxed mb-8">
+                Fuzileiro, certifique-se de inserir seu <span className="text-emerald-400 font-bold">WhatsApp corretamente</span>. 
+                <br /><br />
+                Através dele, você receberá <span className="text-white font-bold">GRATUITAMENTE</span> informações sobre atualizações de bizus, novas questões e novidades cruciais para sua aprovação!
+                <br /><br />
+                <span className="text-[10px] uppercase text-emerald-500/80 font-black tracking-widest">
+                  Apenas o administrador do sistema terá acesso a essa informação.
+                </span>
+              </p>
+              <button 
+                onClick={() => setShowLoginNotice(false)} 
+                className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-military text-xl py-4 rounded-2xl border-b-4 border-emerald-800 transition-all active:translate-y-1 active:border-b-0"
+              >
+                COMPREENDIDO, COMANDO!
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="w-full max-w-sm bg-slate-900/95 p-8 rounded-3xl border-2 border-slate-700 shadow-2xl space-y-6">
           <div className="text-center">
             <h2 className="text-4xl font-military text-white uppercase tracking-tighter">Apresente-se</h2>
@@ -240,13 +272,17 @@ export default function App() {
           <div className="space-y-4">
             <input type="text" placeholder="Grito de Guerra" className="w-full bg-slate-800 border-2 border-slate-700 p-4 rounded-xl text-white font-bold outline-none focus:border-emerald-500 uppercase" 
               value={nickname} onChange={(e) => { setNickname(e.target.value); if(e.target.value.toUpperCase()==='ADMIN') setIsAdminField(true); else setIsAdminField(false); }} />
-            <input type="tel" placeholder="WhatsApp (DDD + Número)" className="w-full bg-slate-800 border-2 border-slate-700 p-4 rounded-xl text-white font-bold outline-none focus:border-emerald-500" 
-              value={phone} onChange={(e) => setPhone(e.target.value)} />
+            <div className="relative">
+              <input type="tel" placeholder="WhatsApp (DDD + Número)" className="w-full bg-slate-800 border-2 border-slate-700 p-4 rounded-xl text-white font-bold outline-none focus:border-emerald-500" 
+                value={phone} onChange={(e) => setPhone(e.target.value)} />
+              <span className="absolute right-4 top-1/2 -translate-y-1/2 material-symbols-outlined text-slate-500 text-sm">chat_bubble</span>
+            </div>
             {isAdminField && (
               <input type="password" placeholder="Código de Comando" className="w-full bg-slate-800 border-2 border-slate-700 p-4 rounded-xl text-white font-bold animate-in slide-in-from-top-2" 
                 value={password} onChange={(e) => setPassword(e.target.value)} />
             )}
             <button onClick={() => handleLogin(nickname, phone, password)} className="w-full bg-emerald-600 p-4 rounded-xl font-military text-2xl uppercase border-b-4 border-emerald-800 active:translate-y-1 active:border-b-0">Engajar</button>
+            <p className="text-center text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-2 animate-pulse">Última Atualização: 15/02/2026</p>
           </div>
         </div>
       </div>

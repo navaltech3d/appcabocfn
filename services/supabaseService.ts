@@ -1,6 +1,7 @@
 
-const SUPABASE_URL = 'https://fnshxeznhxlwoeblsrwe.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_N-870wY6DMg8MSYoRQfrWw_Z3B1STZ-'; 
+const SUPABASE_URL = 'https://ocoobqyxxhcpbuqoreay.supabase.co';
+// Chave atualizada conforme fornecido pelo usuário
+const SUPABASE_KEY = 'sb_publishable_C-U5yz_vricL-YqAfvv23g__rXAOInD'; 
 
 const getHeaders = () => ({
   'apikey': SUPABASE_KEY,
@@ -32,14 +33,22 @@ export const fetchQuestionsFromDB = async () => {
 export const fetchAllSubscribers = async () => {
   if (!SUPABASE_KEY) return [];
   try {
-    const response = await fetch(`${SUPABASE_URL}/rest/v1/ranking?select=nickname,phone,score,rank,updated_at&order=updated_at.desc`, {
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/ranking_militar?select=nickname,phone,score,rank,updated_at&order=updated_at.desc`, {
       method: 'GET',
       headers: getHeaders(),
     });
-    if (!response.ok) return [];
+    
+    if (!response.ok) {
+        if (response.status === 401) {
+            console.error("ERRO 401: A 'SUPABASE_KEY' é inválida. Verifique se a chave 'anon' está correta no painel do Supabase.");
+        }
+        const errText = await response.text();
+        console.error("Erro na API:", errText);
+        return [];
+    }
     return await response.json();
   } catch (error) {
-    console.error('Erro ao buscar inscritos:', error);
+    console.error('Erro de conexão ao buscar inscritos:', error);
     return [];
   }
 };
@@ -50,7 +59,7 @@ export const fetchAllSubscribers = async () => {
 export const fetchGlobalRanking = async () => {
   if (!SUPABASE_KEY) return [];
   try {
-    const response = await fetch(`${SUPABASE_URL}/rest/v1/ranking?select=nickname,score,rank&order=score.desc&limit=50`, {
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/ranking_militar?select=nickname,score,rank&order=score.desc&limit=50`, {
       method: 'GET',
       headers: getHeaders(),
     });
@@ -62,8 +71,7 @@ export const fetchGlobalRanking = async () => {
 };
 
 /**
- * Registra ou atualiza o score do usuário no Supabase.
- * Usa o nickname como chave primária para resolver conflitos.
+ * Registra ou atualiza o score do fuzileiro no Supabase.
  */
 export const upsertScore = async (nickname: string, score: number, rank: string, phone: string) => {
   if (!nickname || nickname === 'ADMIN' || !SUPABASE_KEY) return;
@@ -71,8 +79,8 @@ export const upsertScore = async (nickname: string, score: number, rank: string,
   const upperNick = nickname.trim().toUpperCase();
 
   try {
-    // 1. Verificar pontuação atual para não reduzir o progresso do fuzileiro
-    const checkResp = await fetch(`${SUPABASE_URL}/rest/v1/ranking?nickname=eq.${encodeURIComponent(upperNick)}&select=score`, {
+    // 1. Verificar score atual
+    const checkResp = await fetch(`${SUPABASE_URL}/rest/v1/ranking_militar?nickname=eq.${encodeURIComponent(upperNick)}&select=score`, {
       method: 'GET',
       headers: getHeaders(),
     });
@@ -83,10 +91,13 @@ export const upsertScore = async (nickname: string, score: number, rank: string,
       if (data && data.length > 0) {
         finalScore = Math.max(score, data[0].score);
       }
+    } else if (checkResp.status === 401) {
+       console.error("ERRO 401 ao verificar score: Chave API Inválida.");
+       return;
     }
 
-    // 2. Realizar o POST com Prefer: resolution=merge-duplicates para fazer o UPSERT
-    const response = await fetch(`${SUPABASE_URL}/rest/v1/ranking`, {
+    // 2. Realizar o UPSERT
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/ranking_militar`, {
       method: 'POST',
       headers: { 
         ...getHeaders(), 
@@ -102,10 +113,10 @@ export const upsertScore = async (nickname: string, score: number, rank: string,
     });
 
     if (!response.ok) {
-      const errorDetail = await response.text();
-      console.error('Falha na sincronização Supabase:', response.status, errorDetail);
+      const errorBody = await response.text();
+      console.error(`Erro ao sincronizar (${response.status}):`, errorBody);
     } else {
-      console.log(`Sincronização bem-sucedida para ${upperNick}`);
+      console.log(`Missão Sincronizada: ${upperNick}`);
     }
   } catch (error) {
     console.error('Erro de conexão com o banco de dados:', error);
