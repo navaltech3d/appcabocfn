@@ -58,40 +58,54 @@ export const fetchGlobalRanking = async () => {
   }
 };
 
+/**
+ * Registra ou atualiza o score do usuário no Supabase.
+ * Usa o nickname como chave de conflito para atualizar dados existentes.
+ */
 export const upsertScore = async (nickname: string, score: number, rank: string, phone: string) => {
   if (!nickname || nickname === 'ADMIN' || !SUPABASE_KEY) return;
 
+  const upperNick = nickname.toUpperCase();
+
   try {
-    const checkResp = await fetch(`${SUPABASE_URL}/rest/v1/ranking?nickname=eq.${nickname.toUpperCase()}&select=score`, {
+    // 1. Primeiro verificamos se o usuário já tem uma pontuação maior salva
+    const checkResp = await fetch(`${SUPABASE_URL}/rest/v1/ranking?nickname=eq.${upperNick}&select=score`, {
       method: 'GET',
       headers: getHeaders(),
     });
 
-    let currentScore = -1;
+    let finalScore = score;
     if (checkResp.ok) {
-      const currentData = await checkResp.json();
-      if (currentData.length > 0) currentScore = currentData[0].score;
+      const data = await checkResp.json();
+      if (data.length > 0) {
+        // Mantém sempre o maior score
+        finalScore = Math.max(score, data[0].score);
+      }
     }
 
+    // 2. Realiza o Upsert (Insert ou Update caso o nickname já exista)
     const response = await fetch(`${SUPABASE_URL}/rest/v1/ranking`, {
       method: 'POST',
       headers: { 
         ...getHeaders(), 
-        'Prefer': 'resolution=merge-duplicates' 
+        'Prefer': 'resolution=merge-duplicates' // Instrução do Supabase para fazer Upsert baseado na PK
       },
       body: JSON.stringify({
-        nickname: nickname.toUpperCase(),
+        nickname: upperNick,
         phone: phone,
-        score: Math.max(score, currentScore),
-        rank,
+        score: finalScore,
+        rank: rank,
         updated_at: new Date().toISOString()
       })
     });
 
     if (!response.ok) {
-      console.error('Falha no Sync Supabase:', response.status);
+      const errorMsg = await response.text();
+      console.error('Erro ao sincronizar com Supabase:', response.status, errorMsg);
+    } else {
+      console.log(`Dados sincronizados com sucesso para: ${upperNick}`);
     }
   } catch (error) {
-    console.error('Erro de conexão com Supabase:', error);
+    console.error('Erro de rede ao conectar com Supabase:', error);
   }
 };
