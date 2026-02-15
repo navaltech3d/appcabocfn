@@ -14,12 +14,12 @@ export interface Question {
   difficulty: Difficulty;
   category: string;
   reference: string; 
-  bizu: string;
+  bizu: string; // Hint directly attached to the question
 }
 
 export interface User {
   nickname: string;
-  phone: string; // Novo campo para atualizações via WhatsApp
+  phone: string;
   score: number;
   rank: string;
   lastPlayed: number;
@@ -32,6 +32,7 @@ export interface RankingEntry {
   phone?: string;
   score: number;
   rank: string;
+  updated_at?: string;
 }
 
 export type AppView = 'login' | 'menu' | 'game' | 'ranking' | 'admin' | 'gameOver' | 'correction';

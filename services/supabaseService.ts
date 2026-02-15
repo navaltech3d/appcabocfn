@@ -10,7 +10,6 @@ const getHeaders = () => ({
 
 /** 
  * Busca perguntas cadastradas no banco de dados.
- * Se a tabela 'questions' não existir, retornará array vazio e o app usará o fallback local.
  */
 export const fetchQuestionsFromDB = async () => {
   if (!SUPABASE_KEY) return [];
@@ -27,10 +26,28 @@ export const fetchQuestionsFromDB = async () => {
   }
 };
 
+/**
+ * Busca todos os fuzileiros cadastrados para visualização admin.
+ */
+export const fetchAllSubscribers = async () => {
+  if (!SUPABASE_KEY) return [];
+  try {
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/ranking?select=nickname,phone,score,rank,updated_at&order=updated_at.desc`, {
+      method: 'GET',
+      headers: getHeaders(),
+    });
+    if (!response.ok) return [];
+    return await response.json();
+  } catch (error) {
+    console.error('Erro ao buscar inscritos:', error);
+    return [];
+  }
+};
+
 export const fetchGlobalRanking = async () => {
   if (!SUPABASE_KEY) return [];
   try {
-    const response = await fetch(`${SUPABASE_URL}/rest/v1/ranking?select=*&order=score.desc&limit=50`, {
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/ranking?select=nickname,score,rank&order=score.desc&limit=50`, {
       method: 'GET',
       headers: getHeaders(),
     });
@@ -56,7 +73,6 @@ export const upsertScore = async (nickname: string, score: number, rank: string,
       if (currentData.length > 0) currentScore = currentData[0].score;
     }
 
-    // Só atualiza se o score for maior ou se estivermos cadastrando o telefone pela primeira vez
     const response = await fetch(`${SUPABASE_URL}/rest/v1/ranking`, {
       method: 'POST',
       headers: { 
@@ -65,7 +81,7 @@ export const upsertScore = async (nickname: string, score: number, rank: string,
       },
       body: JSON.stringify({
         nickname: nickname.toUpperCase(),
-        phone: phone, // Sincroniza o telefone para o sistema de notificações
+        phone: phone,
         score: Math.max(score, currentScore),
         rank,
         updated_at: new Date().toISOString()
