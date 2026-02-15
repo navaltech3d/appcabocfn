@@ -14,11 +14,12 @@ export interface Question {
   difficulty: Difficulty;
   category: string;
   reference: string; 
-  bizu: string; // Dica pré-definida para o botão BIZU SG
+  bizu: string;
 }
 
 export interface User {
   nickname: string;
+  phone: string; // Novo campo para atualizações via WhatsApp
   score: number;
   rank: string;
   lastPlayed: number;
@@ -28,6 +29,7 @@ export interface User {
 
 export interface RankingEntry {
   nickname: string;
+  phone?: string;
   score: number;
   rank: string;
 }
